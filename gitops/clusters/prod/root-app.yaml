@@ -1,0 +1,15 @@
+---
+# app-of-apps 진입점. Argo CD 부트스트랩(ansible/roles/argocd_bootstrap)이 이 파일을
+# 최초 1회 적용한다. 이후 변경은 전부 GitOps로 이 저장소를 통해서만 이루어진다.
+#
+# TODO(Phase 1): controllers → configs → data → apps 순서의 sync-wave 를
+#                Application 리소스로 구현
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: root-app-placeholder
+data:
+  note: |
+    TODO: argoproj.io/v1alpha1 Application (app-of-apps) 구현.
+    설계 문서 §2.8.10 의 sync-wave 순서를 따른다.
+    controllers(wave 0) -> configs(wave 1) -> data(wave 2) -> apps(wave 3)

@@ -1,0 +1,14 @@
+# ESO / SecretStore 경로에 대한 쓰기 권한은 실제 Production Secret 접근 권한과
+# 거의 동등하게 취급한다. Platform Owner 승인 없이는 merge할 수 없다.
+
+/gitops/infrastructure/controllers/external-secrets/  @move-hoon
+/gitops/infrastructure/configs/secret-stores/          @move-hoon
+/gitops/**/external-secret*.yaml                       @move-hoon
+
+# 관리망·방화벽·K3s 부트스트랩 순서는 잠금 사고와 직결된다.
+/ansible/roles/management_network/                     @move-hoon
+/ansible/roles/firewall/                                @move-hoon
+/ansible/playbooks/site.yml                             @move-hoon
+
+# 보안그룹 규칙
+/infra/bootstrap/security-groups.yaml                  @move-hoon

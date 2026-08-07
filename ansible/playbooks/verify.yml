@@ -1,0 +1,19 @@
+---
+# Phase 1 Gate 자동 검증. 설계 문서의 도입 Gate·실증 항목을 assert 로 표현한다.
+# TODO(Phase 1): §도입 Gate 9항목, §3.5 실증 Gate 9항목을 여기에 구현
+- name: Gate 검증
+  hosts: k3s_first_server
+  become: true
+  gather_facts: false
+  tasks:
+    - name: TODO — 노드 3대 Ready 확인
+      ansible.builtin.debug:
+        msg: "TODO: kubectl get nodes 로 3대 Ready 검증"
+
+    - name: TODO — etcd 멤버 3개 확인
+      ansible.builtin.debug:
+        msg: "TODO: journalctl -u k3s | grep etcd.*member"
+
+    - name: TODO — cilium connectivity test
+      ansible.builtin.debug:
+        msg: "TODO: cilium connectivity test 실행 및 결과 검증"

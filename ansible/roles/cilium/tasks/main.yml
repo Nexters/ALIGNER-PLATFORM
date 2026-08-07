@@ -1,0 +1,38 @@
+---
+# 설계 문서 §2.3 — Cilium 은 컨트롤 머신에서 helm 으로 설치한다.
+# K3s auto-deploy(HelmChart CR)를 쓰지 않는 이유는 문서 §2.3 참조.
+#
+# 전제: 이 role은 site.yml 에서 hosts: localhost, connection: local 로 실행된다.
+#       k3s 첫 서버가 부트스트랩되어 kubeconfig 를 가져올 수 있는 상태여야 한다.
+
+- name: kubeconfig 를 컨트롤 머신으로 가져온다
+  ansible.builtin.fetch:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "{{ playbook_dir }}/../../.runtime/kubeconfig"
+    flat: true
+  delegate_to: "{{ groups['k3s_first_server'][0] }}"
+  become: true
+
+- name: Cilium Helm repo 추가
+  kubernetes.core.helm_repository:
+    name: cilium
+    repo_url: https://helm.cilium.io/
+
+- name: Cilium 설치 — CNI 없이도 동작한다 (helm 이 클러스터 밖에서 API 를 호출)
+  kubernetes.core.helm:
+    name: cilium
+    chart_ref: cilium/cilium
+    chart_version: "{{ cilium_version }}"
+    release_namespace: kube-system
+    kubeconfig: "{{ playbook_dir }}/../../.runtime/kubeconfig"
+    values_files:
+      - "{{ role_path }}/files/cilium-values.yaml"
+    set_values:
+      # cluster_cidr 은 group_vars 에서 확정된 값을 그대로 쓴다 (사후 변경 불가)
+      - value: ipam.operator.clusterPoolIPv4PodCIDRList[0]={{ cluster_cidr }}
+        value_type: string
+    wait: true
+    wait_timeout: 10m
+
+# TODO(Phase 1): cilium status --wait / cilium connectivity test 검증 태스크 추가
+# TODO(Phase 1): §도입 Gate — cilium-agent RSS·CPU 실측 태스크 추가

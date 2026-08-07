@@ -1,0 +1,11 @@
+---
+# 재구축 리허설용. 설계 문서 Phase 4 참조.
+# TODO(Phase 4): 노드 삭제 순서 (LB → VM → 볼륨 → IP) 구현
+- name: Teardown (재구축 리허설)
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: TODO — teardown 절차 구현
+      ansible.builtin.debug:
+        msg: "TODO: Phase 4 재구축 리허설 절차 구현"
