@@ -40,3 +40,5 @@ gabiactl access close -f desired-infrastructure.yaml --targets k3s-01,k3s-02
 ## 근거
 
 초기 구축과 재구축을 자동화하면서도 9개월·단일 클러스터보다 큰 Provider 제품을 만들지 않는다. L1 결과를 inventory 하나로 L2와 연결해 도구 결합을 제한한다.
+
+실제 endpoint와 검증 상태는 [가비아 Gen2 API 계약 조사](../architecture/gabia-gen2-api-contract.md)를 따른다.

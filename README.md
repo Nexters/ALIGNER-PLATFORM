@@ -11,6 +11,7 @@ L3  Argo CD    Traefik, Gateway API, cert-manager, ESO, CNPG, 앱
 ## 문서
 
 - [현행 아키텍처](docs/architecture/overview.md)
+- [가비아 Gen2 API 계약 조사](docs/architecture/gabia-gen2-api-contract.md)
 - [구축·운영 로드맵](docs/roadmap.md)
 - [ADR](docs/adr/)
 - [Runbook](docs/runbooks/)
