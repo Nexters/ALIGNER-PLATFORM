@@ -29,6 +29,12 @@ reviews:
         management_network role 검증 이후에만 적용되어야 한다.
         이 role 단독으로 순서를 바꾸거나 먼저 실행되게 하는 변경은 위험하다.
 
+    - path: "ansible/playbooks/site.yml"
+      instructions: >
+        role 실행 순서를 정의하는 진입점이다. management_network가
+        firewall보다 먼저 오는지 확인한다. 순서가 바뀌면 22/6443 포트가
+        검증 전에 닫혀 노드 접근이 끊기는 잠금 사고가 발생한다.
+
     - path: "ansible/roles/cilium/**"
       instructions: >
         cluster_cidr(10.42.0.0/16)은 Day 1 확정값이며 클러스터 생성 후
@@ -54,6 +60,12 @@ reviews:
         넓은 포트 범위가 있으면 반드시 지적한다.
 
     - path: "**/*.yml"
+      instructions: >
+        Ansible/GitHub Actions 워크플로다. GitHub Actions의 uses는 태그가
+        아니라 커밋 SHA로 고정되어야 한다(공급망 공격 방지). 태그만 있는
+        `uses:` 구문을 발견하면 지적한다.
+
+    - path: "**/*.yaml"
       instructions: >
         Ansible/GitHub Actions 워크플로다. GitHub Actions의 uses는 태그가
         아니라 커밋 SHA로 고정되어야 한다(공급망 공격 방지). 태그만 있는
@@ -95,6 +107,7 @@ knowledge_base:
     enabled: true
     filePatterns:
       - "docs/architecture/**"
+      - "!docs/architecture/gabia-k3s-9month-design.md"
       - "docs/adr/**"
       - "CONTRIBUTING.md"
       - "SECURITY.md"
