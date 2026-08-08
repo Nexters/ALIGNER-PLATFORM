@@ -1,0 +1,54 @@
+# {{ ansible_managed }}
+# 이 파일이 정본이다. K3s 설치 스크립트를 CLI 플래그로 재실행하지 않는다.
+# 설계 문서 §2.1 참조.
+
+data-dir: "{{ k3s_data_dir }}"
+secrets-encryption: true
+
+tls-san:
+{% for ip in k3s_node_ips %}
+  - {{ ip }}
+{% endfor %}
+
+node-name: "{{ inventory_hostname }}"
+node-ip: "{{ ansible_host }}"
+advertise-address: "{{ ansible_host }}"
+
+cluster-cidr: "{{ cluster_cidr }}"
+service-cidr: "{{ service_cidr }}"
+
+# Cilium 을 위해 K3s 기본 CNI 와 NetworkPolicy 컨트롤러를 비활성화한다.
+flannel-backend: none
+disable-network-policy: true
+
+disable:
+  - traefik      # Argo CD 가 Helm 으로 관리한다 (§2.4)
+  - servicelb    # 가비아 External LB 와 역할 중복
+
+etcd-snapshot-schedule-cron: "0 */6 * * *"
+etcd-snapshot-retention: 28
+etcd-s3: true    # Cloudflare R2 hot/etcd/ (S3 호환)
+
+kubelet-arg:
+  - "system-reserved=cpu=200m,memory=1Gi"
+  - "kube-reserved=cpu=200m,memory=512Mi"
+  - "eviction-hard=memory.available<300Mi,nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,imagefs.inodesFree<5%"
+  - "image-gc-high-threshold=75"
+  - "image-gc-low-threshold=60"
+
+kube-apiserver-arg:
+  - "audit-policy-file=/etc/rancher/k3s/audit-policy.yaml"
+  - "audit-log-path=/var/log/k3s-audit.log"
+  - "audit-log-maxage=7"
+  - "audit-log-maxbackup=5"
+  - "audit-log-maxsize=100"
+
+write-kubeconfig-mode: "0600"
+
+{% if inventory_hostname not in groups['k3s_first_server'] %}
+server: "https://{{ hostvars[groups['k3s_first_server'][0]]['ansible_host'] }}:6443"
+token: "{{ lookup('env', 'K3S_TOKEN') }}"
+{% else %}
+cluster-init: true
+token: "{{ lookup('env', 'K3S_TOKEN') }}"
+{% endif %}

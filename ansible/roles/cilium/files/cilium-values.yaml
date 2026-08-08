@@ -1,0 +1,54 @@
+---
+# Cilium Helm values — 켜지 않는 것을 명시하는 것이 핵심이다 (설계 문서 §2.3).
+#
+# 사용:
+#   helm upgrade --install cilium cilium/cilium \
+#     --version "{{ cilium_version }}" \
+#     --namespace kube-system \
+#     -f cilium-values.yaml \
+#     --set ipam.operator.clusterPoolIPv4PodCIDRList[0]="{{ cluster_cidr }}"
+
+routingMode: tunnel
+tunnelProtocol: vxlan              # 기본 8472/UDP — 사설 대역 한정, 인터넷에 노출하지 않는다
+
+ipam:
+  mode: cluster-pool
+  operator:
+    # ★ K3s cluster-cidr 과 반드시 일치해야 한다. 사후 변경 불가 — Day 1 에 확정.
+    clusterPoolIPv4PodCIDRList: ["10.42.0.0/16"]
+    clusterPoolIPv4MaskSize: 24
+
+kubeProxyReplacement: false        # kube-proxy 유지 (deprecated 'partial' 값 사용 금지)
+
+prometheus:
+  enabled: true
+
+operator:
+  replicas: 2
+  prometheus:
+    enabled: true
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+
+hubble:
+  enabled: true
+  relay: { enabled: false }        # Relay·UI 는 끈다 (Phase 4 실험 클러스터에서만 검증)
+  ui: { enabled: false }
+  metrics:
+    enableOpenMetrics: true
+    enabled:                       # agent 메트릭만 — Hubble 채택 근거를 실제로 회수한다
+      - dns
+      - drop
+      - policy:sourceContext=workload-name|reserved-identity;destinationContext=workload-name|reserved-identity
+      # tcp · flow · port-distribution 은 Phase 1 에서 켜지 않는다 (카디널리티)
+
+encryption:
+  enabled: false                   # 가비아 사설망 테넌트 격리 확인(문의 B3) 후 결정
+
+clustermesh:
+  useAPIServer: false
+
+l7Proxy: false                     # 초기 미사용
+
+resources:                         # 공식 기본값은 {} — 실측 전 보수적 초기값
+  requests: { cpu: 100m, memory: 300Mi }

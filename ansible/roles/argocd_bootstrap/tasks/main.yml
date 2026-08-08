@@ -1,0 +1,6 @@
+---
+# TODO(Phase 1): argocd_bootstrap 구현
+# 설계 문서 §2.8.10 · Phase 1 작업표 참조
+- name: argocd_bootstrap — 아직 구현되지 않음
+  ansible.builtin.debug:
+    msg: "TODO: argocd_bootstrap role 구현 필요"

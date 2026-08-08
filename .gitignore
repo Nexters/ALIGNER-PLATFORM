@@ -1,0 +1,31 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+terraform.tfvars
+backend.hcl
+crash.log
+crash.*.log
+
+# Runtime — 생성물 전체 (gabiactl/terraform output, kubeconfig)
+.runtime/
+
+# Kubernetes
+*.kubeconfig
+kubeconfig
+
+# Credentials
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.env.*
+vault-password*
+secrets/plaintext/
+
+# Local
+.idea/
+.vscode/
+.DS_Store

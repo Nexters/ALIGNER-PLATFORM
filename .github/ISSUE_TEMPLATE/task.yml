@@ -1,0 +1,43 @@
+name: 작업 (Task)
+description: 인프라·플랫폼 작업 항목을 등록한다
+labels: ["task"]
+body:
+  - type: dropdown
+    id: layer
+    attributes:
+      label: 계층
+      description: 이 작업이 속한 계층 (설계 문서 §2.8.4 참조)
+      options:
+        - "L1 — infra (클라우드 리소스)"
+        - "L2 — ansible (OS·K3s·Cilium)"
+        - "L3 — gitops (Argo CD)"
+        - "docs — 설계·ADR·Runbook"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 무엇을 하는가
+      placeholder: 예) k3s role 에 secrets-encrypt rotate-keys 절차 추가
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: 완료 조건 (Definition of Done)
+      placeholder: |
+        - [ ] rotate-keys 실행 전 etcd snapshot 확보 태스크
+        - [ ] 3노드 hash 일치 확인 태스크
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: risk
+    attributes:
+      label: 위험 확인
+      options:
+        - label: 관리망(management_network) 또는 방화벽(firewall) 순서에 영향을 준다
+        - label: ESO/SecretStore 경로를 변경한다
+        - label: 시크릿·자격증명이 포함되지 않았음을 확인했다

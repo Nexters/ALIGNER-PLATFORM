@@ -1,0 +1,47 @@
+---
+# 실행 순서가 이 파일 하나에 있다. 순서를 바꾸지 않는다.
+#
+#   ansible-playbook -i .runtime/inventory.yaml ansible/playbooks/site.yml
+#
+- name: ALIGNER Platform — 노드 부트스트랩
+  hosts: all
+  become: true
+  gather_facts: true
+
+  roles:
+    - preflight          # OS·커널·디스크·사설망 사전 검사
+    - baseline            # hostname·시간·swap·sysctl
+    - storage              # Data-A/B 마운트 + mount-guard (§1.4)
+
+    # ⚠️ 아래 두 role 의 순서를 절대 바꾸지 않는다.
+    #    management_network 로 새 접속 경로를 확보하고 실제로 접속에 성공한
+    #    것을 확인한 뒤에만 firewall 로 22/6443 공인망을 차단한다.
+    #    순서를 바꾸면 3노드 동시 잠금 사고가 난다 (설계 문서 Phase 1 참조).
+    - management_network  # Tailscale 또는 WireGuard (freeze 결정, §1.5.1)
+    - firewall             # 22/6443 공인망 차단 — break-glass 검증 후에만
+
+- name: K3s 첫 서버 부트스트랩
+  hosts: k3s_first_server
+  become: true
+  roles:
+    - k3s
+
+- name: Cilium 설치 (컨트롤 머신에서 helm 실행 — CNI 없이도 동작)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - cilium
+
+- name: 나머지 K3s 서버 조인
+  hosts: k3s_servers
+  become: true
+  serial: 1               # 한 노드씩 순차 조인 — etcd quorum 을 지킨다
+  roles:
+    - k3s
+
+- name: Argo CD 부트스트랩 (최초 1회만 — 이후는 GitOps)
+  hosts: k3s_first_server
+  become: true
+  roles:
+    - argocd_bootstrap

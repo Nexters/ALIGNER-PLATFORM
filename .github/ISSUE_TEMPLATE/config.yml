@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 설계 문서
+    url: https://github.com/Nexters/ALIGNER-PLATFORM/tree/main/docs/architecture
+    about: 아키텍처 결정과 Gate 기준을 먼저 확인한다
+  - name: ADR 목록
+    url: https://github.com/Nexters/ALIGNER-PLATFORM/tree/main/docs/adr
+    about: 이미 결정된 사항인지 확인한다
