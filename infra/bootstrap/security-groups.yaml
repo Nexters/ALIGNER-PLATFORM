@@ -1,12 +1,12 @@
-# 설계 문서 §1.5 보안그룹 정책. 규칙을 별도 파일로 두어 리뷰 대상을 명확히 한다.
+# 현행 아키텍처의 보안그룹 정책. 규칙을 별도 파일로 두어 리뷰 대상을 명확히 한다.
 # CODEOWNERS 에 의해 이 파일의 변경은 지정 리뷰어 승인 없이 merge할 수 없다.
 
 rules:
   inbound_external:
     - { port: 443, protocol: TCP, source: "lb_private_ip", description: "HTTPS via LB" }
     - { port: 80, protocol: TCP, source: "lb_private_ip", description: "HTTP via LB (ACME)" }
-    - { port: 51820, protocol: UDP, source: "0.0.0.0/0", description: "WireGuard — 유효 키 없으면 무응답", condition: "management_network_mode == wireguard" }
-    # 22, 6443 은 공인망에서 차단한다. 관리망(WireGuard/Tailscale) 경유로만 접근한다.
+    - { port: 51820, protocol: UDP, source: "0.0.0.0/0", targets: ["k3s-01", "k3s-02"], description: "WireGuard gateway" }
+    # 22, 6443 은 공인망에서 차단하고 WireGuard 관리망으로만 접근한다.
 
   inbound_private:
     - { port: [2379, 2380], protocol: TCP, source: "node_private_cidr", description: "etcd" }

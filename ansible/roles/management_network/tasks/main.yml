@@ -1,6 +1,54 @@
 ---
-# TODO(Phase 1): management_network 구현
-# 설계 문서 §2.8.10 · Phase 1 작업표 참조
-- name: management_network — 아직 구현되지 않음
-  ansible.builtin.debug:
-    msg: "TODO: management_network role 구현 필요"
+- name: WireGuard gateway 구성
+  when: inventory_hostname in groups['management_gateways']
+  block:
+    - name: WireGuard 필수 변수 확인
+      ansible.builtin.assert:
+        that:
+          - wireguard_private_key | default('') | length > 0
+          - wireguard_address | default('') | length > 0
+          - wireguard_network_cidr | default('') | length > 0
+          - wireguard_peers | length > 0
+        fail_msg: "WireGuard private key, address, network CIDR, peer를 런타임에 주입해야 합니다."
+      no_log: true
+
+    - name: WireGuard 패키지 설치
+      ansible.builtin.apt:
+        name:
+          - wireguard
+          - iptables
+        state: present
+        update_cache: true
+
+    - name: IPv4 forwarding 설정 배포
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/99-aligner-wireguard.conf
+        content: "net.ipv4.ip_forward = 1\n"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Sysctl 설정 다시 읽기
+
+    - name: WireGuard 설정 디렉터리 생성
+      ansible.builtin.file:
+        path: /etc/wireguard
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: WireGuard gateway 설정 배포
+      ansible.builtin.template:
+        src: wg0.conf.j2
+        dest: "/etc/wireguard/{{ wireguard_interface }}.conf"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+      notify: WireGuard 재시작
+
+    - name: WireGuard gateway 활성화
+      ansible.builtin.systemd_service:
+        name: "wg-quick@{{ wireguard_interface }}"
+        enabled: true
+        state: started

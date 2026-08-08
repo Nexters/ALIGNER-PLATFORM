@@ -1,0 +1,16 @@
+# {{ ansible_managed }}
+[Interface]
+Address = {{ wireguard_address }}
+ListenPort = {{ wireguard_port }}
+PrivateKey = {{ wireguard_private_key }}
+SaveConfig = false
+PostUp = iptables -A FORWARD -i %i -d {{ wireguard_vpc_cidr }} -j ACCEPT; iptables -A FORWARD -o %i -s {{ wireguard_vpc_cidr }} -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT; iptables -t nat -A POSTROUTING -s {{ wireguard_network_cidr }} -d {{ wireguard_vpc_cidr }} -o {{ wireguard_egress_interface }} -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -d {{ wireguard_vpc_cidr }} -j ACCEPT; iptables -D FORWARD -o %i -s {{ wireguard_vpc_cidr }} -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT; iptables -t nat -D POSTROUTING -s {{ wireguard_network_cidr }} -d {{ wireguard_vpc_cidr }} -o {{ wireguard_egress_interface }} -j MASQUERADE
+
+{% for peer in wireguard_peers %}
+[Peer]
+# {{ peer.name }}
+PublicKey = {{ peer.public_key }}
+AllowedIPs = {{ peer.allowed_ips[inventory_hostname] }}
+
+{% endfor %}

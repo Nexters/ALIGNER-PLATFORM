@@ -1,6 +1,6 @@
 ---
-# Phase 1 Gate 자동 검증. 설계 문서의 도입 Gate·실증 항목을 assert 로 표현한다.
-# TODO(Phase 1): §도입 Gate 9항목, §3.5 실증 Gate 9항목을 여기에 구현
+# 프로덕션 Gate 자동 검증. docs/roadmap.md의 판정 항목을 assert로 표현한다.
+# TODO: 노드 Ready, etcd, Cilium, 자원 Gate를 구현한다.
 - name: Gate 검증
   hosts: k3s_first_server
   become: true

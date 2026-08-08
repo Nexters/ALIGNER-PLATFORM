@@ -1,5 +1,5 @@
 ---
-# Cilium Helm values — 켜지 않는 것을 명시하는 것이 핵심이다 (설계 문서 §2.3).
+# Cilium Helm values — 켜지 않는 것을 명시하는 것이 핵심이다.
 #
 # 사용:
 #   helm upgrade --install cilium cilium/cilium \
@@ -32,7 +32,7 @@ operator:
 
 hubble:
   enabled: true
-  relay: { enabled: false }        # Relay·UI 는 끈다 (Phase 4 실험 클러스터에서만 검증)
+  relay: { enabled: false }        # Relay·UI는 실제 요구 전까지 켜지 않는다
   ui: { enabled: false }
   metrics:
     enableOpenMetrics: true

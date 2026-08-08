@@ -1,6 +1,6 @@
 ---
 # TODO(Phase 1): baseline 구현
-# 설계 문서 §2.8.10 · Phase 1 작업표 참조
+# docs/roadmap.md의 1주차 L2 기준선 참조
 - name: baseline — 아직 구현되지 않음
   ansible.builtin.debug:
     msg: "TODO: baseline role 구현 필요"
