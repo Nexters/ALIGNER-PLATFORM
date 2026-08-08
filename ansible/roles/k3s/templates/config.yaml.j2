@@ -1,6 +1,6 @@
 # {{ ansible_managed }}
 # 이 파일이 정본이다. K3s 설치 스크립트를 CLI 플래그로 재실행하지 않는다.
-# 설계 문서 §2.1 참조.
+# docs/architecture/overview.md의 K3s 표준 참조.
 
 data-dir: "{{ k3s_data_dir }}"
 secrets-encryption: true
@@ -11,8 +11,8 @@ tls-san:
 {% endfor %}
 
 node-name: "{{ inventory_hostname }}"
-node-ip: "{{ ansible_host }}"
-advertise-address: "{{ ansible_host }}"
+node-ip: "{{ private_ip }}"
+advertise-address: "{{ private_ip }}"
 
 cluster-cidr: "{{ cluster_cidr }}"
 service-cidr: "{{ service_cidr }}"
@@ -22,7 +22,7 @@ flannel-backend: none
 disable-network-policy: true
 
 disable:
-  - traefik      # Argo CD 가 Helm 으로 관리한다 (§2.4)
+  - traefik      # Argo CD가 Helm으로 관리한다
   - servicelb    # 가비아 External LB 와 역할 중복
 
 etcd-snapshot-schedule-cron: "0 */6 * * *"
@@ -46,7 +46,7 @@ kube-apiserver-arg:
 write-kubeconfig-mode: "0600"
 
 {% if inventory_hostname not in groups['k3s_first_server'] %}
-server: "https://{{ hostvars[groups['k3s_first_server'][0]]['ansible_host'] }}:6443"
+server: "https://{{ hostvars[groups['k3s_first_server'][0]]['private_ip'] }}:6443"
 token: "{{ lookup('env', 'K3S_TOKEN') }}"
 {% else %}
 cluster-init: true

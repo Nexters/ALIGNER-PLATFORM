@@ -1,6 +1,6 @@
 ---
 # TODO(Phase 1): firewall 구현
-# 설계 문서 §2.8.10 · Phase 1 작업표 참조
+# docs/architecture/overview.md의 관리 트래픽 정책 참조
 - name: firewall — 아직 구현되지 않음
   ansible.builtin.debug:
     msg: "TODO: firewall role 구현 필요"

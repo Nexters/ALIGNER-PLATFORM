@@ -1,11 +1,17 @@
 ---
-# 설계 문서 §2.3 — Cilium 은 컨트롤 머신에서 helm 으로 설치한다.
-# K3s auto-deploy(HelmChart CR)를 쓰지 않는 이유는 문서 §2.3 참조.
+# Cilium은 컨트롤 머신에서 Helm으로 설치한다.
+# K3s auto-deploy 대신 L2가 CNI 부트스트랩을 소유한다.
 #
 # 전제: 이 role은 site.yml 에서 hosts: localhost, connection: local 로 실행된다.
 #       k3s 첫 서버가 부트스트랩되어 kubeconfig 를 가져올 수 있는 상태여야 한다.
 
-- name: kubeconfig 를 컨트롤 머신으로 가져온다
+- name: Runtime 디렉터리 생성
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/../../.runtime"
+    state: directory
+    mode: "0700"
+
+- name: Kubeconfig를 컨트롤 머신으로 가져오기
   ansible.builtin.fetch:
     src: /etc/rancher/k3s/k3s.yaml
     dest: "{{ playbook_dir }}/../../.runtime/kubeconfig"
@@ -13,12 +19,19 @@
   delegate_to: "{{ groups['k3s_first_server'][0] }}"
   become: true
 
+- name: Kubeconfig API 주소를 WireGuard 경유 사설 IP로 변경
+  ansible.builtin.replace:
+    path: "{{ playbook_dir }}/../../.runtime/kubeconfig"
+    regexp: 'server: https://127\.0\.0\.1:6443'
+    replace: "server: https://{{ hostvars[groups['k3s_first_server'][0]]['private_ip'] }}:6443"
+    mode: "0600"
+
 - name: Cilium Helm repo 추가
   kubernetes.core.helm_repository:
     name: cilium
     repo_url: https://helm.cilium.io/
 
-- name: Cilium 설치 — CNI 없이도 동작한다 (helm 이 클러스터 밖에서 API 를 호출)
+- name: Cilium 설치 — 클러스터 밖에서 API 호출
   kubernetes.core.helm:
     name: cilium
     chart_ref: cilium/cilium
@@ -34,5 +47,5 @@
     wait: true
     wait_timeout: 10m
 
-# TODO(Phase 1): cilium status --wait / cilium connectivity test 검증 태스크 추가
-# TODO(Phase 1): §도입 Gate — cilium-agent RSS·CPU 실측 태스크 추가
+# TODO: cilium status --wait / cilium connectivity test 검증 태스크 추가
+# TODO: docs/roadmap.md의 Cilium Gate RSS·CPU 실측 태스크 추가

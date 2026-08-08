@@ -1,4 +1,4 @@
-# 0001. Public 플랫폼 저장소와 저장소 3분할
+# 0001. Public 플랫폼 저장소와 저장소 2분할
 
 ## 상태
 
@@ -12,12 +12,11 @@ Accepted
 
 ## 결정
 
-저장소를 역할 기준으로 3분할한다. 공개 여부가 아니라 **변경 책임과 생명주기가 다르기 때문**이다.
+저장소를 역할 기준으로 2분할한다. 공개 여부가 아니라 **변경 책임과 생명주기가 다르기 때문**이다.
 
 ```text
 Nexters/ALIGNER-SERVER            Public   애플리케이션 소스와 CI
 Nexters/ALIGNER-PLATFORM          Public   인프라·Ansible·K3s·GitOps·ADR·Runbook (이 저장소)
-개인/terraform-provider-gabiacloud Private  재사용 가능한 Provider (Aligner 비종속)
 ```
 
 `Nexters` Organization 아래에 둔다. CODEOWNERS의 승인자는 `@move-hoon`.
@@ -32,6 +31,7 @@ Private Key·생성된 인벤토리(`.runtime/`)는 처음부터 Git 관리 대�
   포트·구조가 노출돼도 안전해야 한다는 원칙과 맞지 않는다.
 - **별도 `ALIGNER-ENV` 저장소** — 단일 클러스터에서 저장소 분리 비용이 이득보다 크다.
 - **Private Git submodule** — 로컬·CI·Argo CD 인증과 커밋 포인터 관리 복잡도가 커진다.
+- **별도 Terraform Provider 저장소** — 9개월·단일 클러스터보다 Provider 개발과 비문서 API 유지보수 비용이 크다. L1은 이 저장소의 얇은 `gabiactl`로 관리한다.
 
 ## 영향
 

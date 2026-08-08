@@ -1,4 +1,8 @@
-# 가비아 gCloud 300만 원 크레딧 · 9개월 집중 운영 Kubernetes 최종 설계안
+# [보관됨] 가비아 gCloud 300만 원 크레딧 · 9개월 집중 운영 Kubernetes v7 설계안
+
+> 이 문서는 과거 결정과 검토 이력을 보존하기 위한 읽기 전용 자료다.
+> 현재 구축·운영의 정본은 `docs/architecture/overview.md`와 `docs/roadmap.md`다.
+> 이 문서의 명령·체크리스트를 실행 기준으로 사용하지 않는다.
 
 ## 공개 저장소 운영 원칙
 

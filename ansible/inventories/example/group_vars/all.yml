@@ -1,23 +1,31 @@
 ---
-# 설계 문서 §2.1·§2.3 의 고정값. 이 파일이 실제 정본이 된다.
+# 아키텍처 문서의 고정값. 이 파일이 실제 실행 정본이 된다.
 # 버전을 올릴 때는 이 값을 바꾸고 PR 로 리뷰한다 — latest 를 따라가지 않는다.
 
 k3s_version: "REPLACE_ME"          # Phase 0 에서 stable 채널 검증 후 고정
 cilium_version: "REPLACE_ME"       # Phase 0 에서 고정
 
 # K3s cluster-cidr 과 Cilium clusterPoolIPv4PodCIDRList 는 반드시 일치해야 한다.
-# 사후 변경이 불가능하므로(§2.3) Day 1 에 확정한다.
+# 사후 변경이 불가능하므로 Day 1 에 확정한다.
 cluster_cidr: "10.42.0.0/16"
 service_cidr: "10.43.0.0/16"
 
 k3s_data_dir: "/mnt/k3s"           # Data-A — etcd, containerd 이미지, kubelet
 application_data_dir: "/mnt/aligner"  # Data-B — PostgreSQL (Redis 는 emptyDir)
 
-# tls-san 에 들어갈 세 노드의 사설 IP. 실제 인벤토리에서는 inventory 로부터 채워진다.
-k3s_node_ips:
-  - "10.0.0.11"
-  - "10.0.0.12"
-  - "10.0.0.13"
+# tls-san은 gabiactl inventory의 private_ip를 정본으로 사용한다.
+k3s_node_ips: "{{ groups['k3s_servers'] | map('extract', hostvars, 'private_ip') | list }}"
 
-# 관리망 — Phase 1 시작(freeze) 시점에 하나만 선택한다 (§1.5.1)
-management_network_mode: "wireguard"   # "tailscale" 또는 "wireguard"
+# WireGuard 관리망. private key는 Infisical에서 런타임 주입한다.
+wireguard_port: 51820
+wireguard_interface: wg0
+wireguard_vpc_cidr: "10.0.0.0/24"
+wireguard_egress_interface: "{{ ansible_default_ipv4.interface }}"
+wireguard_peers: []
+# 예시:
+# wireguard_peers:
+#   - name: operator-a
+#     public_key: "REPLACE_ME"
+#     allowed_ips:
+#       k3s-01: "10.99.1.11/32"
+#       k3s-02: "10.99.2.11/32"

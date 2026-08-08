@@ -1,6 +1,6 @@
 ---
-# 재구축 리허설용. 설계 문서 Phase 4 참조.
-# TODO(Phase 4): 노드 삭제 순서 (LB → VM → 볼륨 → IP) 구현
+# 전체 재구축과 종료 Runbook의 리허설용.
+# TODO: gabiactl destroy 전 노드 내부 정리 절차 구현
 - name: Teardown (재구축 리허설)
   hosts: all
   become: true
@@ -8,4 +8,4 @@
   tasks:
     - name: TODO — teardown 절차 구현
       ansible.builtin.debug:
-        msg: "TODO: Phase 4 재구축 리허설 절차 구현"
+        msg: "TODO: docs/runbooks/full-rebuild.md의 노드 내부 정리 절차 구현"

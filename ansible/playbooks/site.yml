@@ -11,13 +11,13 @@
   roles:
     - preflight          # OS·커널·디스크·사설망 사전 검사
     - baseline            # hostname·시간·swap·sysctl
-    - storage              # Data-A/B 마운트 + mount-guard (§1.4)
+    - storage              # Data-A/B 마운트 + root filesystem fallback 차단
 
     # ⚠️ 아래 두 role 의 순서를 절대 바꾸지 않는다.
     #    management_network 로 새 접속 경로를 확보하고 실제로 접속에 성공한
     #    것을 확인한 뒤에만 firewall 로 22/6443 공인망을 차단한다.
     #    순서를 바꾸면 3노드 동시 잠금 사고가 난다 (설계 문서 Phase 1 참조).
-    - management_network  # Tailscale 또는 WireGuard (freeze 결정, §1.5.1)
+    - management_network  # WireGuard gateway 2대
     - firewall             # 22/6443 공인망 차단 — break-glass 검증 후에만
 
 - name: K3s 첫 서버 부트스트랩
