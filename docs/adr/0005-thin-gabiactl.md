@@ -23,7 +23,8 @@ gabiactl access close -f desired-infrastructure.yaml --targets k3s-01,k3s-02
 - 안정적인 이름으로 원격 상태를 먼저 조회하고 없는 리소스만 생성한다.
 - 401은 세션 재발급 후 한 번만 재시도하고 동시 재발급은 하나로 합친다.
 - POST 실패 후 원격 상태를 재조회해 중복 생성을 막는다.
-- 비동기 작업은 `ACTIVE`까지 polling하고 `ERROR`에서 실패한다.
+- 비동기 작업의 완료·실패 상태와 polling 간격은 sandbox에서 리소스별로 검증한 뒤 확정하며,
+  검증 전에는 운영 자동화에 구현하지 않는다.
 - credential과 session header를 로그에 출력하지 않는다.
 - 생성 ID는 `.runtime/gabiactl-state.json`, Ansible 입력은 `.runtime/inventory.yaml`에 기록한다.
 - `inventory --connect-via public|private`로 최초 WireGuard 부트스트랩과 정상 운영 경로를 구분한다.

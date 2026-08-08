@@ -122,7 +122,10 @@ VPC와 Subnet 생성 UI는 각각 `name`, `description`, `cidr`와
 않거나 NIC를 선택할 수 있다. 이 세 요청은 번들에서 raw payload를 그대로 전달하므로 정확한
 key와 상품 `goods_id` 필요 여부를 sandbox request에서 확정한다.
 
-## UI에서 확인한 프로젝트 상태
+## UI 관찰 스냅샷 (2026-08-08, 비계약 정보)
+
+아래 값은 조사 시점의 프로젝트 상태와 콘솔 표시값이다. `gabiactl`의 검증 기준이나 비용
+계산의 고정값으로 사용하지 않으며, 실행 시 API로 조회하고 변경 작업 전에 다시 확인한다.
 
 - 기본 VPC `192.168.0.0/16`, public Subnet `192.168.0.0/24`, Routing Table이 존재한다.
 - 기본 Security Group은 SSH 22, HTTPS 443, RDP 3389를 `0.0.0.0/0`에 허용한다.
@@ -158,6 +161,11 @@ key와 상품 `goods_id` 필요 여부를 sandbox request에서 확정한다.
 - Security Group 생성 UI도 inbound SSH/22, HTTPS/443, RDP/3389 전체 공개와 outbound
   ALL 전체 허용을 기본으로 제시한다. 자동화 요청에서는 기본 inbound 규칙을 명시적으로
   제거하고 필요한 규칙만 보낸다.
+
+## `gabiactl` 안전 기본값
+
+- 구현 시 Load Balancer Listener 보안 규칙이 생략된 요청을 거부한다.
+- 공개 Listener는 80/443과 명시적인 허용 CIDR만 사용하며 관리 포트는 허용하지 않는다.
 
 ## sandbox 캡처 체크리스트
 
