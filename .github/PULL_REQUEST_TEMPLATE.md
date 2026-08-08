@@ -8,12 +8,12 @@
 
 ## 어떻게 검증했는가
 
-<!-- 예: ansible-lint 통과, kustomize build 통과, 로컬에서 gitleaks detect 실행 -->
+<!-- 예: ansible-lint 통과, kustomize build 통과, 로컬에서 trufflehog 실행 -->
 
 ## 체크리스트
 
 - [ ] `make lint` / `make render` 통과 확인
-- [ ] 로컬에서 `gitleaks detect` 실행 — 시크릿 없음 확인
+- [ ] 로컬에서 `trufflehog git file://. --only-verified` 실행 — 검증된 시크릿 없음 확인
 - [ ] `.runtime/`, `*.tfstate`, `*.kubeconfig` 등이 diff에 없음을 확인
 
 ### 아래 경로를 변경했다면 추가로 확인

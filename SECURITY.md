@@ -31,10 +31,13 @@
 
 ## 스캐닝
 
-모든 push와 PR에서 [gitleaks](https://github.com/gitleaks/gitleaks)로 커밋 이력을 스캔한다
-(`.github/workflows/secret-scan.yml`). GitHub Secret Scanning과 Push Protection도 활성화돼
-있다.
+모든 push와 PR에서 [TruffleHog OSS](https://github.com/trufflesecurity/trufflehog)로 커밋
+이력을 스캔한다(`.github/workflows/secret-scan.yml`). `--only-verified`로 실제로 살아있는
+자격증명(발견한 키로 해당 서비스 API에 검증 요청까지 보내 확인한 것)만 CI를 실패시킨다.
+GitHub Secret Scanning과 Push Protection도 활성화돼 있다.
 
-> **Organization 저장소로 옮기는 경우**: `gitleaks-action`은 Organization 소유 저장소에서
-> 무료 라이선스(`GITLEAKS_LICENSE`)를 요구한다. [gitleaks.io](https://gitleaks.io)에서
-> 발급받아 저장소 Secret으로 등록한다. Personal 계정 저장소는 필요 없다.
+> **gitleaks 대신 trufflehog를 선택한 이유**: `gitleaks-action`은 Organization 소유
+> 저장소(`Nexters/*`)에서 무료 라이선스(`GITLEAKS_LICENSE`)를 요구한다. trufflehog OSS
+> Action은 라이선스 없이 Organization 저장소에서도 동작하고, 발견한 후보를 실제로 검증하는
+> 기능이 있어 오탐이 적다. 로컬에서 병합 전 미검증 후보까지 넓게 보고 싶으면
+> `trufflehog git file://. --no-verification` 또는 `gitleaks detect`를 보조로 쓴다.

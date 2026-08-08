@@ -40,6 +40,8 @@ Private Key·생성된 인벤토리(`.runtime/`)는 처음부터 Git 관리 대�
   변수 표기(`{{ k3s_node_ips[0] }}` 등)로 작성한다.
 - Public 저장소이므로 secret scanning, push protection, CODEOWNERS를 Phase 0에서 필수로
   구성한다.
-- **`Nexters` Organization 소속이므로 `gitleaks-action`에 무료 라이선스(`GITLEAKS_LICENSE`)가
-  필요하다.** [gitleaks.io](https://gitleaks.io)에서 발급받아 저장소 Secret으로 등록한다
-  (Personal 계정이었다면 필요 없었다). `SECURITY.md` 참조.
+- **`Nexters` Organization 소속이라 `gitleaks-action` 대신 TruffleHog OSS를 채택했다.**
+  `gitleaks-action`은 Organization 소유 저장소에서 무료 라이선스(`GITLEAKS_LICENSE`, 발급처
+  [gitleaks.io](https://gitleaks.io))를 요구하는데, TruffleHog OSS Action은 라이선스 없이
+  동작하고 발견한 후보를 실제 서비스 API로 검증하는 기능이 있어 오탐이 적다. `SECURITY.md`
+  참조.
