@@ -18,7 +18,7 @@ storage_data_b_group: root
 storage_data_b_mode: "0750"
 storage_data_b_min_free_bytes: 5368709120
 storage_data_b_guard_path: /usr/local/libexec/aligner-local-pv-data-b-guard
-storage_data_b_guard_marker_path: /etc/aligner/storage/data-b.uuid
+storage_data_b_guard_marker_path: "{{ storage_data_b_mount_path }}/.aligner-data-b.uuid"
 
 storage_filesystem_type: ext4
 storage_mount_options: defaults

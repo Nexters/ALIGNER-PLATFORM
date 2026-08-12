@@ -1,0 +1,39 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: aligner-db
+  namespace: aligner-data
+spec:
+  instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.5
+  bootstrap:
+    initdb:
+      database: aligner
+      owner: aligner
+      secret:
+        name: aligner-postgresql-app
+  storage:
+    size: 30Gi
+    storageClass: aligner-local-path
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+  postgresql:
+    parameters:
+      archive_timeout: 300s
+      max_connections: "120"
+      max_wal_size: 1GB
+      min_wal_size: 256MB
+      wal_compression: "on"
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: aligner-r2-backup
+  resources:
+    requests:
+      cpu: 250m
+      memory: 2Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
