@@ -1,0 +1,54 @@
+// DO NOT deploy this file before the Runtime Gate in observability.md passes.
+// Required Secret keys: GRAFANA_METRICS_URL, GRAFANA_METRICS_USERNAME,
+// GRAFANA_LOGS_URL, GRAFANA_LOGS_USERNAME, GRAFANA_CLOUD_API_KEY.
+// Values are injected into the Alloy Pod only; they never belong in Git.
+
+prometheus.remote_write "grafana_cloud" {
+  external_labels = { cluster = "aligner-prod" }
+  endpoint {
+    url = sys.env("GRAFANA_METRICS_URL")
+    basic_auth {
+      username = sys.env("GRAFANA_METRICS_USERNAME")
+      password = sys.env("GRAFANA_CLOUD_API_KEY")
+    }
+  }
+}
+
+loki.write "grafana_cloud" {
+  endpoint {
+    url = sys.env("GRAFANA_LOGS_URL")
+    basic_auth {
+      username = sys.env("GRAFANA_LOGS_USERNAME")
+      password = sys.env("GRAFANA_CLOUD_API_KEY")
+    }
+  }
+}
+
+// Enable one block only after its endpoint and its metric-family contract have
+// been recorded. No guessed ports, paths, labels, or metric names are allowed.
+//
+// discovery.kubernetes "pods" { role = "pod" }
+// discovery.relabel "pod_metrics" {
+//   targets = discovery.kubernetes.pods.targets
+//   rule { action = "labeldrop" regex = "pod_uid|container_id|image_id" }
+// }
+// prometheus.scrape "verified_pods" {
+//   targets = discovery.relabel.pod_metrics.output
+//   scrape_interval = "60s"
+//   sample_limit = 5000
+//   label_limit = 30
+//   forward_to = [prometheus.relabel.cardinality.receiver]
+// }
+// prometheus.relabel "cardinality" {
+//   forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+//   rule { action = "labeldrop" regex = "pod_uid|container_id|image_id" }
+// }
+//
+// The permitted endpoint inventory is node/Kubernetes/etcd/Cilium/CNPG/API/JVM.
+// Each must have its own explicit discovery/scrape block after validation.
+// Do not collect events, all namespaces' logs, Hubble flows, traces, profiles,
+// or arbitrary application metrics in this phase.
+//
+// For permitted error-investigation logs only, use discovery.kubernetes scoped
+// to the approved namespace and loki.secretfilter before loki.write. Keep only
+// namespace, pod, container and approved app labels; never create uid labels.

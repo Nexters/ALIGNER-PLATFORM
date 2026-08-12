@@ -1,0 +1,38 @@
+# RUNTIME GATE: replace api.aligner.example.invalid only after the External LB
+# and public DNS are approved. This directory is deliberately not referenced by
+# the parent kustomization until then.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: platform
+  namespace: traefik
+  labels:
+    aligner.io/runtime-gate: public-hostname-and-tls-secret
+spec:
+  gatewayClassName: platform-traefik
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: api.aligner.example.invalid
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              gateway-access: "true"
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: api.aligner.example.invalid
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: aligner-api-tls-staging
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              gateway-access: "true"
