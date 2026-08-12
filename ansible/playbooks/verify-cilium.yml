@@ -1,0 +1,299 @@
+---
+# Cilium Gate.  This playbook never stops a VM or changes the installed CNI.
+- name: Cilium network validation gate
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    cilium_gate_runtime_approved: false
+    cilium_gate_agent_restart_approved: false
+    cilium_gate_kubeconfig: "{{ playbook_dir }}/../../.runtime/kubeconfig"
+    cilium_gate_artifacts_dir: "{{ playbook_dir }}/../../.runtime/cilium-gate"
+    cilium_gate_connectivity_namespace: cilium-gate-connectivity
+    cilium_gate_policy_namespace: cilium-gate-policy
+    cilium_gate_vm_stop_evidence_approved: false
+    cilium_gate_vm_stop_evidence_ref: ""
+  pre_tasks:
+    - name: Require an explicit validation approval
+      ansible.builtin.assert:
+        that:
+          - cilium_gate_runtime_approved | bool
+          - cilium_gate_agent_restart_approved | bool
+          - cilium_version == '1.20.0'
+          - cilium_gate_artifacts_dir is match('^/')
+          - cilium_gate_kubeconfig is file
+        fail_msg: >-
+          Refusing Cilium Gate. Set cilium_gate_runtime_approved=true and the
+          separate cilium_gate_agent_restart_approved=true, retain cilium_version=1.20.0,
+          and provide the existing runtime kubeconfig.
+
+    - name: Create local evidence directory
+      ansible.builtin.file:
+        path: "{{ cilium_gate_artifacts_dir }}"
+        state: directory
+        mode: "0700"
+
+  tasks:
+    - name: Capture Cilium CLI version (review visibility; CLI release is distinct from chart)
+      ansible.builtin.command:
+        argv: [cilium, version, --client]
+      changed_when: false
+      register: cilium_cli_version
+
+    - name: Capture installed Cilium Helm metadata
+      ansible.builtin.command:
+        argv: [helm, get, metadata, cilium, --namespace, kube-system, --kubeconfig, "{{ cilium_gate_kubeconfig }}", --output, json]
+      changed_when: false
+      register: cilium_helm_metadata
+
+    - name: Assert installed Helm chart pin
+      ansible.builtin.assert:
+        that:
+          - "(cilium_helm_metadata.stdout | from_json).chart == 'cilium-1.20.0'"
+        fail_msg: Installed Cilium Helm chart is not cilium-1.20.0.
+
+    - name: Wait for Cilium status
+      ansible.builtin.command:
+        argv:
+          - cilium
+          - status
+          - --kubeconfig
+          - "{{ cilium_gate_kubeconfig }}"
+          - --wait
+          - --wait-duration
+          - 5m
+      changed_when: false
+      register: cilium_status
+
+    - name: Run official Cilium connectivity test in an isolated namespace
+      block:
+        - name: Run official Cilium connectivity test
+          ansible.builtin.command:
+            argv:
+              - cilium
+              - connectivity
+              - test
+              - --kubeconfig
+              - "{{ cilium_gate_kubeconfig }}"
+              - --test-namespace
+              - "{{ cilium_gate_connectivity_namespace }}"
+          changed_when: false
+          register: cilium_connectivity
+      always:
+        - name: Remove Cilium connectivity test namespace
+          ansible.builtin.command:
+            argv:
+              - kubectl
+              - --kubeconfig
+              - "{{ cilium_gate_kubeconfig }}"
+              - delete
+              - namespace
+              - "{{ cilium_gate_connectivity_namespace }}"
+              - --ignore-not-found=true
+              - --wait=true
+          changed_when: false
+
+    - name: Run DNS, Service, default-deny, and explicit-allow checks
+      block:
+        - name: Create isolated policy test resources
+          ansible.builtin.command:
+            argv: [kubectl, --kubeconfig, "{{ cilium_gate_kubeconfig }}", apply, -k, "{{ playbook_dir }}/../manifests/cilium-gate"]
+          changed_when: false
+
+        - name: Wait for isolated policy test workloads
+          ansible.builtin.command:
+            argv:
+              - kubectl
+              - --kubeconfig
+              - "{{ cilium_gate_kubeconfig }}"
+              - -n
+              - "{{ cilium_gate_policy_namespace }}"
+              - wait
+              - --for=condition=Ready
+              - pod
+              - -l
+              - app=cilium-gate
+              - --timeout=3m
+          changed_when: false
+
+        - name: Verify cluster DNS from isolated client
+          ansible.builtin.command:
+            argv:
+              - kubectl
+              - --kubeconfig
+              - "{{ cilium_gate_kubeconfig }}"
+              - -n
+              - "{{ cilium_gate_policy_namespace }}"
+              - exec
+              - deploy/client
+              - --
+              - nslookup
+              - web.cilium-gate-policy.svc.cluster.local
+          changed_when: false
+          register: cilium_dns
+
+        - name: Verify Service before policy enforcement
+          ansible.builtin.command:
+            argv:
+              - kubectl
+              - --kubeconfig
+              - "{{ cilium_gate_kubeconfig }}"
+              - -n
+              - "{{ cilium_gate_policy_namespace }}"
+              - exec
+              - deploy/client
+              - --
+              - wget
+              - -qO-
+              - --timeout=5
+              - http://web
+          changed_when: false
+          register: cilium_service_before_policy
+
+        - name: Apply isolated default-deny policy
+          ansible.builtin.command:
+            argv:
+              - kubectl
+              - --kubeconfig
+              - "{{ cilium_gate_kubeconfig }}"
+              - apply
+              - -f
+              - "{{ playbook_dir }}/../manifests/cilium-gate/default-deny.yaml"
+          changed_when: false
+
+        - name: Attempt Service request blocked by default deny
+          ansible.builtin.command:
+            argv:
+              - kubectl
+              - --kubeconfig
+              - "{{ cilium_gate_kubeconfig }}"
+              - -n
+              - "{{ cilium_gate_policy_namespace }}"
+              - exec
+              - deploy/client
+              - --
+              - wget
+              - -qO-
+              - --timeout=5
+              - http://web
+          changed_when: false
+          failed_when: false
+          register: cilium_default_deny
+
+        - name: Assert default-deny blocks Service request
+          ansible.builtin.assert:
+            that: [cilium_default_deny.rc != 0]
+            fail_msg: Default-deny policy did not block the unallowed Service request.
+
+        - name: Apply explicit client-to-Service allow policy
+          ansible.builtin.command:
+            argv:
+              - kubectl
+              - --kubeconfig
+              - "{{ cilium_gate_kubeconfig }}"
+              - apply
+              - -f
+              - "{{ playbook_dir }}/../manifests/cilium-gate/allow-client-to-web.yaml"
+          changed_when: false
+
+        - name: Verify explicit allow restores Service request
+          ansible.builtin.command:
+            argv:
+              - kubectl
+              - --kubeconfig
+              - "{{ cilium_gate_kubeconfig }}"
+              - -n
+              - "{{ cilium_gate_policy_namespace }}"
+              - exec
+              - deploy/client
+              - --
+              - wget
+              - -qO-
+              - --timeout=5
+              - http://web
+          changed_when: false
+          register: cilium_explicit_allow
+      always:
+        - name: Remove isolated policy test namespace
+          ansible.builtin.command:
+            argv:
+              - kubectl
+              - --kubeconfig
+              - "{{ cilium_gate_kubeconfig }}"
+              - delete
+              - namespace
+              - "{{ cilium_gate_policy_namespace }}"
+              - --ignore-not-found=true
+              - --wait=true
+          changed_when: false
+
+    - name: List Cilium agents for per-node recovery evidence
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, "{{ cilium_gate_kubeconfig }}", -n, kube-system, get, pods, -l, k8s-app=cilium, --output=json]
+      changed_when: false
+      register: cilium_agents
+
+    - name: Restart and recover one Cilium agent at a time
+      ansible.builtin.include_tasks: tasks/restart-cilium-agent.yml
+      loop: "{{ (cilium_agents.stdout | from_json).items }}"
+      loop_control:
+        label: "{{ item.spec.nodeName }}:{{ item.metadata.name }}"
+
+    - name: Capture Cilium agent CPU and memory usage
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, "{{ cilium_gate_kubeconfig }}", -n, kube-system, top, pod, -l, k8s-app=cilium, --containers]
+      changed_when: false
+      register: cilium_resource_usage
+
+    - name: Capture Cilium agent RSS and Prometheus metric-series count
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig
+          - "{{ cilium_gate_kubeconfig }}"
+          - -n
+          - kube-system
+          - exec
+          - "{{ item.metadata.name }}"
+          - --
+          - sh
+          - -ec
+          - >-
+            awk '/VmRSS/ {print $2 " " $3}' /proc/1/status;
+            wget -qO- http://127.0.0.1:9962/metrics |
+            awk '!/^#/ {count++} END {print "metric_series " count}'
+      changed_when: false
+      loop: "{{ (cilium_agents.stdout | from_json).items }}"
+      loop_control:
+        label: "{{ item.spec.nodeName }}:{{ item.metadata.name }}"
+      register: cilium_agent_rss_and_metrics
+
+    - name: Write secret-free Gate evidence
+      ansible.builtin.copy:
+        dest: "{{ cilium_gate_artifacts_dir }}/gate-summary.yml"
+        mode: "0600"
+        content: |
+          cilium_chart: "{{ (cilium_helm_metadata.stdout | from_json).chart }}"
+          cilium_cli: {{ cilium_cli_version.stdout | to_json }}
+          cilium_status: {{ cilium_status.stdout | to_json }}
+          connectivity: {{ cilium_connectivity.stdout | to_json }}
+          dns: {{ cilium_dns.stdout | to_json }}
+          service_before_policy: {{ cilium_service_before_policy.stdout | to_json }}
+          default_deny_rc: {{ cilium_default_deny.rc }}
+          explicit_allow: {{ cilium_explicit_allow.stdout | to_json }}
+          agent_restarts: >-
+            {{ ((cilium_agents.stdout | from_json).items |
+                map(attribute='spec.nodeName') | list) | to_json }}
+          resources: {{ cilium_resource_usage.stdout | to_json }}
+          rss_and_metric_series: {{ cilium_agent_rss_and_metrics.results | map(attribute='stdout') | list | to_json }}
+          vm_stop_evidence_approved: {{ cilium_gate_vm_stop_evidence_approved | bool | to_json }}
+          vm_stop_evidence_ref: {{ cilium_gate_vm_stop_evidence_ref | to_json }}
+
+    - name: Fail closed until the manual VM-stop evidence is reviewed
+      ansible.builtin.assert:
+        that:
+          - cilium_gate_vm_stop_evidence_approved | bool
+          - cilium_gate_vm_stop_evidence_ref | length > 0
+        fail_msg: >-
+          Cilium Gate remains FAIL: VM-stop is manual only. Record reviewed evidence
+          in cilium_gate_vm_stop_evidence_ref; do not stop a VM from this playbook.

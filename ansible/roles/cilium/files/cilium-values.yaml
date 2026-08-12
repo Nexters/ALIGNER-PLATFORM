@@ -18,7 +18,7 @@ ipam:
     clusterPoolIPv4PodCIDRList: ["10.42.0.0/16"]
     clusterPoolIPv4MaskSize: 24
 
-kubeProxyReplacement: false        # kube-proxy 유지 (deprecated 'partial' 값 사용 금지)
+kubeProxyReplacement: false # kube-proxy 유지 (deprecated 'partial' 값 사용 금지)
 
 prometheus:
   enabled: true
@@ -28,12 +28,12 @@ operator:
   prometheus:
     enabled: true
   resources:
-    requests: { cpu: 50m, memory: 128Mi }
+    requests: {cpu: 50m, memory: 128Mi}
 
 hubble:
   enabled: true
-  relay: { enabled: false }        # Relay·UI는 실제 요구 전까지 켜지 않는다
-  ui: { enabled: false }
+  relay: {enabled: false} # Relay·UI는 실제 요구 전까지 켜지 않는다
+  ui: {enabled: false}
   metrics:
     enableOpenMetrics: true
     enabled:                       # agent 메트릭만 — Hubble 채택 근거를 실제로 회수한다
@@ -50,5 +50,5 @@ clustermesh:
 
 l7Proxy: false                     # 초기 미사용
 
-resources:                         # 공식 기본값은 {} — 실측 전 보수적 초기값
-  requests: { cpu: 100m, memory: 300Mi }
+resources: # 공식 기본값은 {} — 실측 전 보수적 초기값
+  requests: {cpu: 100m, memory: 300Mi}

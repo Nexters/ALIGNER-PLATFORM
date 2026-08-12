@@ -13,7 +13,20 @@ Accepted with Gate
 
 ## Gate
 
-프로덕션 데이터 투입 전 connectivity, 정책 deny/allow, cilium-agent 재시작, VM 한 대 장애, RSS/CPU 시험을 통과해야 한다. 실패하면 운영 중 교체하지 않고 Flannel로 클러스터를 재생성한다.
+프로덕션 데이터 투입 전 `make verify-cilium`으로 status, 공식 connectivity, DNS/Service,
+정책 deny/allow, 노드별 agent 재시작, RSS/CPU/metric series를 기록해야 한다. VM 한 대
+정지는 외부 파괴 작업이므로 자동화하지 않는다. [Cilium Gate runbook](../runbooks/cilium-gate.md)의
+수동 증적이 승인되기 전에는 Gate가 FAIL이다. 어느 하나라도 실패하면 프로덕션 데이터 투입을
+막고, 운영 중 CNI 교체 대신 Flannel로 **클러스터를 재생성**할지 ADR을 갱신해 결정한다.
+
+### Gate record
+
+| Check | Pass evidence | Fail disposition |
+| --- | --- | --- |
+| Runtime pin | `gate-summary.yml`의 chart `cilium-1.20.0`, CLI version | data blocked; do not upgrade/swap CNI |
+| Status/connectivity/DNS/Service/policy | playbook output and `gate-summary.yml` | data blocked; diagnose then rerun |
+| Agent restart/resources | per-node restart list, CPU/memory, RSS/series | data blocked; capacity/remediation review |
+| VM stop | approved runbook evidence reference | data blocked; Flannel rebuild decision required |
 
 ## 근거
 

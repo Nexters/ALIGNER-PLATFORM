@@ -1,0 +1,10 @@
+---
+- name: Restart Cilium agent on node {{ item.spec.nodeName }}
+  ansible.builtin.command:
+    argv: [kubectl, --kubeconfig, "{{ cilium_gate_kubeconfig }}", -n, kube-system, delete, pod, "{{ item.metadata.name }}"]
+  changed_when: true
+
+- name: Wait for Cilium recovery on node {{ item.spec.nodeName }}
+  ansible.builtin.command:
+    argv: [kubectl, --kubeconfig, "{{ cilium_gate_kubeconfig }}", -n, kube-system, rollout, status, daemonset/cilium, --timeout=5m]
+  changed_when: false
