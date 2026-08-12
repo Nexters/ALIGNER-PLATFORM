@@ -1,0 +1,11 @@
+apiVersion: audit.k8s.io/v1
+kind: Policy
+omitStages:
+  - RequestReceived
+rules:
+  - level: None
+    resources:
+      - group: ""
+        resources:
+          - secrets
+  - level: Metadata

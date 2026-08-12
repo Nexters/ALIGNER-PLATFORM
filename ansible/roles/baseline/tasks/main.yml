@@ -1,6 +1,83 @@
 ---
-# TODO(Phase 1): baseline 구현
-# docs/roadmap.md의 1주차 L2 기준선 참조
-- name: baseline — 아직 구현되지 않음
+- name: Preflight 통과 상태 검사
+  ansible.builtin.assert:
+    that:
+      - preflight_passed | default(false) | bool
+      - ansible_distribution == baseline_supported_distribution
+      - ansible_distribution_version == baseline_supported_distribution_version
+    fail_msg: Ubuntu 24.04 preflight를 통과한 노드에서만 baseline을 적용할 수 있습니다.
+
+- name: 노드 hostname 설정
+  ansible.builtin.hostname:
+    name: "{{ baseline_hostname }}"
+
+- name: 시간 동기화 서비스 설정
+  ansible.builtin.systemd_service:
+    name: systemd-timesyncd.service
+    enabled: true
+    state: started
+
+- name: 시간 동기화 상태 확인
+  ansible.builtin.command:
+    argv:
+      - timedatectl
+      - show
+      - --property=NTPSynchronized
+      - --value
+  register: baseline_ntp_synchronized
+  until: baseline_ntp_synchronized.stdout | trim == 'yes'
+  retries: 6
+  delay: 5
+  when: not ansible_check_mode
+  changed_when: false
+
+- name: 활성 swap 비활성화
+  ansible.builtin.command:
+    argv:
+      - swapoff
+      - -a
+  when:
+    - ansible_swaptotal_mb | int > 0
+    - not ansible_check_mode
+  changed_when: true
+
+- name: Fstab swap 항목 제거
+  ansible.posix.mount:
+    path: none
+    fstype: swap
+    state: absent
+
+- name: K3s 커널 모듈 자동 로드 설정
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/99-aligner-k3s.conf
+    content: "{{ baseline_kernel_modules | join('\n') }}\n"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: K3s 커널 모듈 즉시 로드
+  ansible.builtin.command:
+    argv:
+      - modprobe
+      - "{{ item }}"
+  loop: "{{ baseline_kernel_modules }}"
+  when: not ansible_check_mode
+  changed_when: false
+
+- name: K3s sysctl 설정
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-aligner-k3s.conf
+    reload: true
+  loop: "{{ baseline_sysctls | dict2items }}"
+
+- name: 재부팅 필요 여부 확인
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: baseline_reboot_required
+
+- name: 재부팅 필요 여부 보고
   ansible.builtin.debug:
-    msg: "TODO: baseline role 구현 필요"
+    msg: "{{ '재부팅이 필요합니다.' if baseline_reboot_required.stat.exists else '재부팅이 필요하지 않습니다.' }}"

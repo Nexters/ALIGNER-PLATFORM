@@ -1,0 +1,24 @@
+---
+# Production inventory must set every device, exact byte size and UUID explicitly.
+storage_data_a_device: ""
+storage_data_a_expected_size_bytes: 0
+storage_data_a_uuid: ""
+storage_data_a_mount_path: "{{ k3s_data_dir | default('/mnt/k3s') }}"
+storage_data_a_owner: root
+storage_data_a_group: root
+storage_data_a_mode: "0750"
+storage_data_a_min_free_bytes: 5368709120
+
+storage_data_b_device: ""
+storage_data_b_expected_size_bytes: 0
+storage_data_b_uuid: ""
+storage_data_b_mount_path: "{{ application_data_dir | default('/mnt/aligner') }}"
+storage_data_b_owner: root
+storage_data_b_group: root
+storage_data_b_mode: "0750"
+storage_data_b_min_free_bytes: 5368709120
+storage_data_b_guard_path: /usr/local/libexec/aligner-local-pv-data-b-guard
+storage_data_b_guard_marker_path: /etc/aligner/storage/data-b.uuid
+
+storage_filesystem_type: ext4
+storage_mount_options: defaults

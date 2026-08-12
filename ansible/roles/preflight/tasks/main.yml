@@ -1,6 +1,66 @@
 ---
-# TODO(Phase 1): preflight 구현
-# docs/roadmap.md의 1주차 사전 조건 참조
-- name: preflight — 아직 구현되지 않음
-  ansible.builtin.debug:
-    msg: "TODO: preflight role 구현 필요"
+- name: K3s 서버 인벤토리 조건 검사
+  ansible.builtin.assert:
+    that:
+      - groups['k3s_servers'] | default([]) | length == 3
+      - groups['k3s_servers'] | map('extract', hostvars, 'private_ip') | select('defined') | list | length == 3
+      - groups['k3s_servers'] | map('extract', hostvars, 'private_ip') | unique | length == 3
+    fail_msg: >-
+      k3s_servers에는 private_ip가 서로 다른 세 노드가 필요합니다.
+  run_once: true
+
+- name: 노드 사설 IP 형식 검사
+  ansible.builtin.assert:
+    that:
+      - private_ip is defined
+      - private_ip is match(preflight_private_ipv4_pattern)
+      - private_ip in ansible_all_ipv4_addresses
+    fail_msg: >-
+      private_ip는 이 노드에 할당된 RFC1918 IPv4 주소여야 합니다.
+
+- name: 지원 운영체제와 커널 검사
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == preflight_supported_distribution
+      - ansible_distribution_version == preflight_supported_distribution_version
+      - ansible_kernel is version(preflight_min_kernel, '>=')
+    fail_msg: >-
+      {{ preflight_supported_distribution }} {{ preflight_supported_distribution_version }}과
+      커널 {{ preflight_min_kernel }} 이상이 필요합니다.
+
+- name: 노드 CPU와 메모리 검사
+  ansible.builtin.assert:
+    that:
+      - ansible_processor_vcpus | int >= preflight_min_vcpus
+      - ansible_memtotal_mb | int >= preflight_min_memory_mb
+    fail_msg: >-
+      노드마다 최소 {{ preflight_min_vcpus }} vCPU와
+      {{ preflight_min_memory_mb }} MiB 메모리가 필요합니다.
+
+- name: Root 디스크 용량 수집
+  ansible.builtin.set_fact:
+    preflight_root_disk_bytes: >-
+      {{ (ansible_mounts | selectattr('mount', 'equalto', '/') |
+      map(attribute='size_total') | first) | default(0, true) }}
+
+- name: Root 디스크 용량 검사
+  ansible.builtin.assert:
+    that:
+      - preflight_root_disk_bytes | int >= preflight_min_root_disk_bytes | int
+    fail_msg: >-
+      Root 디스크는 최소 {{ preflight_min_root_disk_bytes | int // 1024 // 1024 // 1024 }} GiB가 필요합니다.
+
+- name: 노드 간 사설망 TCP 도달성 검사
+  ansible.builtin.wait_for:
+    host: "{{ hostvars[item].private_ip }}"
+    port: "{{ hostvars[item].ansible_port | default(preflight_peer_port) }}"
+    state: started
+    connect_timeout: "{{ preflight_peer_connect_timeout }}"
+    timeout: "{{ preflight_peer_timeout }}"
+  loop: "{{ groups['k3s_servers'] | reject('equalto', inventory_hostname) | list }}"
+  when: not ansible_check_mode
+  changed_when: false
+
+- name: Preflight 통과 상태 기록
+  ansible.builtin.set_fact:
+    preflight_passed: true

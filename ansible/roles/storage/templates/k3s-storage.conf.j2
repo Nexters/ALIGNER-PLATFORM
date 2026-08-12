@@ -1,0 +1,4 @@
+# Data-A must be mounted; starting K3s on the root filesystem is forbidden.
+[Unit]
+RequiresMountsFor={{ storage_data_a_mount_path }}
+After=local-fs.target

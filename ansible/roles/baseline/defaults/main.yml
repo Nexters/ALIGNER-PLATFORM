@@ -1,0 +1,11 @@
+---
+baseline_supported_distribution: Ubuntu
+baseline_supported_distribution_version: "24.04"
+baseline_hostname: "{{ inventory_hostname }}"
+baseline_kernel_modules:
+  - overlay
+  - br_netfilter
+baseline_sysctls:
+  net.bridge.bridge-nf-call-iptables: "1"
+  net.bridge.bridge-nf-call-ip6tables: "1"
+  net.ipv4.ip_forward: "1"

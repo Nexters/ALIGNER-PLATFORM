@@ -1,0 +1,11 @@
+---
+preflight_supported_distribution: Ubuntu
+preflight_supported_distribution_version: "24.04"
+preflight_min_kernel: "5.15"
+preflight_min_vcpus: 2
+preflight_min_memory_mb: 8192
+preflight_min_root_disk_bytes: 53687091200
+preflight_private_ipv4_pattern: "^(10\\.|192\\.168\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.).+$"
+preflight_peer_port: 22
+preflight_peer_connect_timeout: 2
+preflight_peer_timeout: 5

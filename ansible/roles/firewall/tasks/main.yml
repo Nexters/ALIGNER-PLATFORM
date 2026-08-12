@@ -1,6 +1,214 @@
 ---
-# TODO(Phase 1): firewall 구현
-# docs/architecture/overview.md의 관리 트래픽 정책 참조
-- name: firewall — 아직 구현되지 않음
-  ansible.builtin.debug:
-    msg: "TODO: firewall role 구현 필요"
+- name: Derive firewall interfaces from gathered facts
+  ansible.builtin.set_fact:
+    firewall_is_management_gateway: "{{ inventory_hostname in groups['management_gateways'] }}"
+    firewall_private_interfaces: >-
+      {{ ansible_facts | dict2items | selectattr('value.ipv4', 'defined')
+      | selectattr('value.ipv4.address', 'equalto', private_ip) | map(attribute='key') | list }}
+    firewall_public_interfaces: >-
+      {{ ansible_facts | dict2items | selectattr('value.ipv4', 'defined')
+      | selectattr('value.ipv4.address', 'equalto', public_ip) | map(attribute='key') | list }}
+  changed_when: false
+
+- name: Stop before firewall mutation without per-node WireGuard proof
+  ansible.builtin.assert:
+    that:
+      - firewall_runtime_approved | bool
+      - firewall_wireguard_access_proven | bool
+      - private_ip in ansible_all_ipv4_addresses
+      - public_ip in ansible_all_ipv4_addresses
+      - firewall_private_interfaces | length == 1
+      - firewall_public_interfaces | length == 1
+      - >-
+        (firewall_is_management_gateway | bool and
+        wireguard_interface in ansible_interfaces and
+        ansible_facts[wireguard_interface].ipv4.address == (wireguard_address.split('/') | first) and
+        firewall_wireguard_cidrs | length > 0) or
+        (not firewall_is_management_gateway | bool and
+        firewall_management_gateway_private_ips | sort ==
+        (groups['management_gateways'] | map('extract', hostvars, 'private_ip') | list | sort))
+      - firewall_gabia_lb_private_ip | length > 0
+      - firewall_wireguard_ssh_check_command | length > 0
+    fail_msg: >-
+      Firewall is intentionally not applied. Set the explicit approval and per-node
+      Gateway nodes require wg0 facts and WireGuard CIDRs. Non-gateway nodes require
+      the exact management gateway private IP list for routed SSH before mutation.
+
+- name: Check new WireGuard SSH path before firewall mutation
+  ansible.builtin.command:
+    argv: "{{ firewall_wireguard_ssh_check_command }}"
+  changed_when: false
+  delegate_to: localhost
+  become: false
+
+- name: Check optional new WireGuard API path before firewall mutation
+  ansible.builtin.command:
+    argv: "{{ firewall_wireguard_api_check_command }}"
+  changed_when: false
+  delegate_to: localhost
+  become: false
+  when: firewall_wireguard_api_check_command | length > 0
+
+- name: Apply persistent host firewall one node at a time
+  block:
+    - name: Install nftables
+      ansible.builtin.package:
+        name: nftables
+        state: present
+
+    - name: Render validated firewall candidate
+      ansible.builtin.template:
+        src: aligner.nft.j2
+        dest: /etc/nftables.conf.aligner-candidate
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Check firewall candidate syntax
+      ansible.builtin.command:
+        argv:
+          - nft
+          - --check
+          - --file
+          - /etc/nftables.conf.aligner-candidate
+      changed_when: false
+
+    - name: Check whether nftables configuration exists before backup
+      ansible.builtin.stat:
+        path: /etc/nftables.conf
+      register: firewall_nftables_conf
+
+    - name: Save pre-firewall configuration for rollback
+      ansible.builtin.copy:
+        src: /etc/nftables.conf
+        dest: /etc/nftables.conf.aligner-pre-firewall
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+      when:
+        - firewall_nftables_conf is defined
+        - firewall_nftables_conf.stat.exists
+
+    - name: Persist firewall configuration
+      ansible.builtin.copy:
+        src: /etc/nftables.conf.aligner-candidate
+        dest: /etc/nftables.conf
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Check for existing dedicated firewall table
+      ansible.builtin.command:
+        argv:
+          - nft
+          - list
+          - table
+          - inet
+          - aligner_firewall
+      register: firewall_aligner_table
+      changed_when: false
+      failed_when: false
+
+    - name: Remove existing dedicated firewall table before replacement
+      ansible.builtin.command:
+        argv:
+          - nft
+          - destroy
+          - table
+          - inet
+          - aligner_firewall
+      changed_when: true
+      when: firewall_aligner_table.rc == 0
+
+    - name: Load firewall configuration
+      ansible.builtin.command:
+        argv:
+          - nft
+          - --file
+          - /etc/nftables.conf
+      changed_when: true
+
+    - name: Enable nftables at reboot
+      ansible.builtin.service:
+        name: nftables
+        enabled: true
+        state: started
+
+    - name: Check new WireGuard SSH path after firewall change
+      ansible.builtin.command:
+        argv: "{{ firewall_wireguard_ssh_check_command }}"
+      changed_when: false
+      delegate_to: localhost
+      become: false
+
+    - name: Check optional new WireGuard API path after firewall change
+      ansible.builtin.command:
+        argv: "{{ firewall_wireguard_api_check_command }}"
+      changed_when: false
+      delegate_to: localhost
+      become: false
+      when: firewall_wireguard_api_check_command | length > 0
+
+  rescue:
+    - name: Remove failed firewall table
+      ansible.builtin.command:
+        argv:
+          - nft
+          - destroy
+          - table
+          - inet
+          - aligner_firewall
+      changed_when: true
+      failed_when: false
+
+    - name: Restore pre-firewall configuration
+      ansible.builtin.copy:
+        src: /etc/nftables.conf.aligner-pre-firewall
+        dest: /etc/nftables.conf
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+      when:
+        - firewall_nftables_conf is defined
+        - firewall_nftables_conf.stat.exists
+
+    - name: Remove configuration created during failed firewall apply
+      ansible.builtin.file:
+        path: /etc/nftables.conf
+        state: absent
+      when:
+        - firewall_nftables_conf is defined
+        - not firewall_nftables_conf.stat.exists
+
+    - name: Reload pre-firewall configuration
+      ansible.builtin.command:
+        argv:
+          - nft
+          - --file
+          - /etc/nftables.conf
+      changed_when: true
+      when:
+        - firewall_nftables_conf is defined
+        - firewall_nftables_conf.stat.exists
+
+    - name: Stop after rollback
+      ansible.builtin.fail:
+        msg: Firewall post-check failed; this node was restored and the serial play stopped.
+
+  always:
+    - name: Remove firewall candidate
+      ansible.builtin.file:
+        path: /etc/nftables.conf.aligner-candidate
+        state: absent
+
+    - name: Remove rollback copy after successful validation
+      ansible.builtin.file:
+        path: /etc/nftables.conf.aligner-pre-firewall
+        state: absent
+      when:
+        - ansible_failed_result is not defined
+        - firewall_nftables_conf is defined
+        - firewall_nftables_conf.stat.exists

@@ -2,14 +2,67 @@
 - name: WireGuard gateway 구성
   when: inventory_hostname in groups['management_gateways']
   block:
-    - name: WireGuard 필수 변수 확인
+    - name: WireGuard 배포 승인과 gateway 구성 확인
       ansible.builtin.assert:
         that:
+          - wireguard_runtime_approved | default(false) | bool
+          - groups['management_gateways'] | sort == ['k3s-01', 'k3s-02']
           - wireguard_private_key | default('') | length > 0
+          - wireguard_public_key | default('') | length > 0
+          - wireguard_private_key is match('^[A-Za-z0-9+/]{43}=$')
+          - wireguard_public_key is match('^[A-Za-z0-9+/]{43}=$')
           - wireguard_address | default('') | length > 0
           - wireguard_network_cidr | default('') | length > 0
+          - wireguard_vpc_cidr | default('') | length > 0
+          - wireguard_client_profiles_dir | default('') | length > 0
           - wireguard_peers | length > 0
-        fail_msg: "WireGuard private key, address, network CIDR, peer를 런타임에 주입해야 합니다."
+          - groups['management_gateways'] | map('extract', hostvars, 'wireguard_address') | list | unique | length == 2
+          - groups['management_gateways'] | map('extract', hostvars, 'wireguard_network_cidr') | list | unique | length == 2
+          - groups['management_gateways'] | map('extract', hostvars, 'wireguard_public_key') | list | unique | length == 2
+          - groups['management_gateways'] | map('extract', hostvars, 'wireguard_profile_name') | list | sort == ['primary', 'secondary']
+        fail_msg: >-
+          승인, gateway key/address, VPC CIDR, peer, profile output을 런타임에 주입해야 합니다.
+      no_log: true
+
+    - name: WireGuard peer별 key와 tunnel IP 확인
+      ansible.builtin.assert:
+        that:
+          - item.name | default('') | length > 0
+          - item.public_key | default('') | length > 0
+          - item.public_key is match('^[A-Za-z0-9+/]{43}=$')
+          - item.allowed_ips is mapping
+          - item.allowed_ips[inventory_hostname] | default('') | length > 0
+          - wireguard_peers | map(attribute='public_key') | list | unique | length == wireguard_peers | length
+          - wireguard_peers | map(attribute='allowed_ips.' ~ inventory_hostname) | list | unique | length == wireguard_peers | length
+        fail_msg: WireGuard peer public key 또는 gateway별 tunnel IP가 없거나 중복됩니다.
+      loop: "{{ wireguard_peers }}"
+      loop_control:
+        label: "{{ item.name | default('unnamed') }}"
+      no_log: true
+
+    - name: WireGuard 클라이언트 profile key와 tunnel IP 확인
+      ansible.builtin.assert:
+        that:
+          - wireguard_client_profiles | default([]) | length == wireguard_peers | length
+          - wireguard_client_profiles | map(attribute='name') | list | sort == wireguard_peers | map(attribute='name') | list | sort
+          - wireguard_client_profiles | map(attribute='name') | list | unique | length == wireguard_client_profiles | length
+          - item.name | default('') | length > 0
+          - item.private_key | default('') | length > 0
+          - item.private_key is match('^[A-Za-z0-9+/]{43}=$')
+          - item.allowed_ips is mapping
+          - groups['management_gateways'] | sort | map('extract', item.allowed_ips) | list | unique | length == 2
+          - item.interface_names is mapping
+          - groups['management_gateways'] | sort | map('extract', item.interface_names) | list | unique | length == 2
+          - item.interface_names['k3s-01'] is match('^[A-Za-z0-9_=+.-]{1,15}$')
+          - item.interface_names['k3s-02'] is match('^[A-Za-z0-9_=+.-]{1,15}$')
+        fail_msg: >-
+          WireGuard client key, tunnel IP, 또는 15자 이하 interface name이 없거나 중복됩니다.
+      loop: "{{ wireguard_client_profiles | default([]) }}"
+      loop_control:
+        label: "{{ item.name | default('unnamed') }}"
+      delegate_to: localhost
+      become: false
+      run_once: true
       no_log: true
 
     - name: WireGuard 패키지 설치
@@ -52,3 +105,38 @@
         name: "wg-quick@{{ wireguard_interface }}"
         enabled: true
         state: started
+
+    - name: WireGuard 클라이언트 프로필 디렉터리 생성
+      ansible.builtin.file:
+        path: "{{ wireguard_client_profiles_dir }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: WireGuard primary와 secondary 클라이언트 프로필 생성
+      ansible.builtin.template:
+        src: wg-client.conf.j2
+        dest: "{{ wireguard_client_profiles_dir }}/{{ item.0.interface_names[item.1] }}.conf"
+        mode: "0600"
+      vars:
+        wireguard_client_peer: "{{ item.0 }}"
+        wireguard_client_gateway: "{{ item.1 }}"
+      loop: "{{ wireguard_client_profiles | product(groups['management_gateways'] | sort) | list }}"
+      loop_control:
+        label: "{{ item.0.interface_names[item.1] }}"
+      delegate_to: localhost
+      become: false
+      run_once: true
+      no_log: true
+
+    - name: WireGuard runtime 상태 확인
+      ansible.builtin.command:
+        argv:
+          - wg
+          - show
+          - "{{ wireguard_interface }}"
+      changed_when: false
+      when: wireguard_runtime_validate | default(false) | bool
+      no_log: true

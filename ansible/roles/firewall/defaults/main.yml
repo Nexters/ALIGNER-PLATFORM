@@ -1,0 +1,18 @@
+---
+# Both values must be set per node only after an operator has verified the new
+# WireGuard route. Their false defaults guarantee no host mutation.
+firewall_runtime_approved: false
+firewall_wireguard_access_proven: false
+
+# Runtime-only values. Keep endpoint addresses and SSH options out of git when
+# they reveal operational topology.
+firewall_wireguard_cidrs: []
+# Non-gateway nodes receive WireGuard-routed traffic after gateway SNAT. This
+# list must be supplied explicitly and match management_gateways private_ip values.
+firewall_management_gateway_private_ips: []
+firewall_gabia_lb_private_ip: ""
+firewall_wireguard_ssh_check_command: []
+# K3s is installed after this role. Supply a read-only API command only when an
+# existing API is already reachable through WireGuard; otherwise #22 verifies it.
+firewall_wireguard_api_check_command: []
+firewall_nodeport_range: "30000-32767"

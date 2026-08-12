@@ -1,0 +1,22 @@
+# Managed by Ansible. The dedicated table leaves WireGuard's iptables-nft NAT
+# rules intact.
+table inet aligner_firewall {
+  chain input {
+    type filter hook input priority -10; policy accept;
+    ct state established,related accept
+    iifname "lo" accept
+
+{% if firewall_is_management_gateway | bool %}
+    ip saddr { {{ firewall_wireguard_cidrs | join(', ') }} } iifname "{{ wireguard_interface }}" tcp dport { 22, 6443 } accept
+{% else %}
+    ip saddr { {{ firewall_management_gateway_private_ips | join(', ') }} } iifname "{{ firewall_private_interfaces | first }}" tcp dport 22 accept
+{% endif %}
+    ip saddr {{ wireguard_vpc_cidr }} iifname "{{ firewall_private_interfaces | first }}" tcp dport { 2379, 2380, 6443, 10250 } accept
+    ip saddr {{ wireguard_vpc_cidr }} iifname "{{ firewall_private_interfaces | first }}" udp dport 8472 accept
+    ip saddr {{ firewall_gabia_lb_private_ip }} iifname "{{ firewall_private_interfaces | first }}" tcp dport {{ firewall_nodeport_range }} accept
+
+    tcp dport { 22, 2379, 2380, 5432, 6379, 6443, 10250 } drop
+    udp dport 8472 drop
+    tcp dport {{ firewall_nodeport_range }} drop
+  }
+}
