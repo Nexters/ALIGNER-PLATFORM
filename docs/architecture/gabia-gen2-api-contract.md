@@ -26,6 +26,8 @@
 | Quota | `https://policy-api.gabiacloud.com/api/v1` | 콘솔 확인 |
 
 - 로그인은 `POST /sessions`, scope 변경·갱신은 `PUT /sessions`를 사용한다.
+- 성공한 세션 생성 응답에서 session ID는 `.session.id`로 확인됐다. scope 필드의 위치·갱신
+  동작은 아직 status/apply의 전제조건으로 사용하지 않는다.
 - 관리 API 요청은 `X-Cloud-Session` 헤더를 사용한다.
 - credential과 session 값은 로그, state, 문서에 남기지 않는다.
 - session 갱신 조건, 만료 시간, 401 재시도는 sandbox에서 다시 검증한다.
@@ -46,6 +48,10 @@
 
 Server와 Volume 연결은 `POST /servers/{serverId}/volumes/{volumeId}`, 해제는 같은 경로의
 `DELETE`다. NIC 추가·삭제는 `/servers/{serverId}/nics` 하위 호출을 사용한다.
+
+Security Group 규칙 수정은 실제 운영 적용에서 `PUT /securitygroups/{id}`에 `rules`만
+보내는 계약을 확인했다. 기존 `name`과 `description`을 함께 보내면 동일 이름 충돌로 `409`가
+발생한다. 임시 SSH `/32` 규칙 제거 후 나머지 규칙 수와 WireGuard SSH를 다시 검증했다.
 
 ## Server 생성 계약
 
@@ -164,6 +170,15 @@ key와 상품 `goods_id` 필요 여부를 sandbox request에서 확정한다.
 
 ## `gabiactl` 안전 기본값
 
+- `gabiactl plan -f ...`와 승인 없는 `gabiactl apply -f ...`는 로컬 state와 목표를 비교해
+  계획만 출력한다. `apply --approve <environment>`도 create payload·비동기 완료 계약이
+  sandbox에서 확정될 때까지 write API를 호출하지 않고 중단한다.
+- `gabiactl status -f ...`는 `GABIACLOUD_USERNAME`과 `GABIACLOUD_PASSWORD`를 프로세스
+  환경에서 읽는다. password 환경변수가 없고 TTY가 있으면 echo를 끈 TTY 입력만 사용한다.
+  session은 메모리에만 보관하며 state·출력·오류에 기록하지 않는다.
+- status의 live read는 현재 sandbox로 상세 GET이 확인된 Subnet에만 한정한다. VPC,
+  Server, Routing Table, Security Group, Volume, Public IP, Load Balancer는 상세 응답
+  계약과 API version이 확정되기 전까지 `read-contract-gated`로 보고하고 변경하지 않는다.
 - 구현 시 Load Balancer Listener 보안 규칙이 생략된 요청을 거부한다.
 - 공개 Listener는 80/443과 명시적인 허용 CIDR만 사용하며 관리 포트는 허용하지 않는다.
 
