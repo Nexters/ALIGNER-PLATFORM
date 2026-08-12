@@ -8,6 +8,7 @@ trap 'rm -rf "$render_dir"' EXIT
 # This checker validates the intentionally fail-closed pre-production state;
 # it is not a runtime readiness or node-failure test.
 rg -q '^resources: \[\]$' "$repo_root/gitops/apps/kustomization.yaml"
+! rg -q '^  - (data|apps)\.yaml$' "$repo_root/gitops/clusters/prod/kustomization.yaml"
 
 for overlay in normal degraded maintenance; do
   kubectl kustomize "$repo_root/gitops/apps/aligner-api/overlays/$overlay" > "$render_dir/$overlay.yaml"

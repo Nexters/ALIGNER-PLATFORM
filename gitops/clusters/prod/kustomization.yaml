@@ -3,5 +3,6 @@ kind: Kustomization
 resources:
   - controllers.yaml
   - configs.yaml
-  - data.yaml
-  - apps.yaml
+# Runtime gates: add data.yaml only after the R2 endpoint, credentials, and
+# Data-B markers pass review. Add apps.yaml only after its child kustomization
+# contains an approved image/probes/resources/egress overlay.
