@@ -1,14 +1,16 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: aligner-prod-root
+  name: aligner-prod-controllers
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
 spec:
   project: default
   source:
     repoURL: https://github.com/Nexters/ALIGNER-PLATFORM.git
     targetRevision: main
-    path: gitops/clusters/prod
+    path: gitops/infrastructure/controllers
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

@@ -1,6 +1,138 @@
 ---
-# TODO(Phase 1): argocd_bootstrap 구현
-# docs/roadmap.md의 2주차와 L3 소유권 참조
-- name: argocd_bootstrap — 아직 구현되지 않음
-  ansible.builtin.debug:
-    msg: "TODO: argocd_bootstrap role 구현 필요"
+- name: Require explicit approval before changing the cluster
+  ansible.builtin.assert:
+    that:
+      - argocd_bootstrap_runtime_approved | bool
+      - argocd_bootstrap_version == 'v3.5.0'
+      - argocd_bootstrap_install_manifest_checksum == 'sha256:65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6'
+    fail_msg: >-
+      Refusing Argo CD bootstrap. Set argocd_bootstrap_runtime_approved=true, retain the
+      reviewed v3.5.0 manifest checksum, and provide a working K3s kubeconfig.
+
+- name: Download the reviewed Argo CD HA installation manifest
+  ansible.builtin.get_url:
+    url: "{{ argocd_bootstrap_install_manifest_url }}"
+    dest: "{{ argocd_bootstrap_install_manifest_path }}"
+    checksum: "{{ argocd_bootstrap_install_manifest_checksum }}"
+    mode: '0644'
+
+- name: Install Argo CD CRDs and controllers
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ argocd_bootstrap_kubeconfig }}"
+      - apply
+      - --server-side
+      - -f
+      - "{{ argocd_bootstrap_install_manifest_path }}"
+  changed_when: false
+
+- name: Wait for the Argo CD Application CRD
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ argocd_bootstrap_kubeconfig }}"
+      - wait
+      - --for=condition=Established
+      - crd/applications.argoproj.io
+      - --timeout=180s
+  changed_when: false
+
+- name: Wait for the Argo CD API server
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ argocd_bootstrap_kubeconfig }}"
+      - -n
+      - argocd
+      - rollout
+      - status
+      - deployment/argocd-server
+      - --timeout=300s
+  changed_when: false
+
+- name: Render Argo CD Kustomize build options
+  ansible.builtin.template:
+    src: argocd-cm-kustomize.yaml.j2
+    dest: "{{ argocd_bootstrap_kustomize_config_path }}"
+    mode: '0600'
+
+- name: Enable Helm chart rendering for Argo CD Kustomize applications
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ argocd_bootstrap_kubeconfig }}"
+      - apply
+      - --server-side
+      - -f
+      - "{{ argocd_bootstrap_kustomize_config_path }}"
+  changed_when: false
+
+- name: Restart the Argo CD repository server for Kustomize options
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ argocd_bootstrap_kubeconfig }}"
+      - -n
+      - argocd
+      - rollout
+      - restart
+      - deployment/argocd-repo-server
+  changed_when: false
+
+- name: Wait for the Argo CD repository server
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ argocd_bootstrap_kubeconfig }}"
+      - -n
+      - argocd
+      - rollout
+      - status
+      - deployment/argocd-repo-server
+      - --timeout=300s
+  changed_when: false
+
+- name: Render the root Application bootstrap manifest
+  ansible.builtin.template:
+    src: root-app.yaml.j2
+    dest: "{{ argocd_bootstrap_root_application_path }}"
+    mode: '0600'
+
+- name: Apply the root Application after its CRD is established
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ argocd_bootstrap_kubeconfig }}"
+      - apply
+      - -f
+      - "{{ argocd_bootstrap_root_application_path }}"
+  changed_when: false
+
+- name: Assert the Argo CD API remains cluster-internal
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ argocd_bootstrap_kubeconfig }}"
+      - -n
+      - argocd
+      - get
+      - service
+      - argocd-server
+      - --output=jsonpath={.spec.type}
+  register: argocd_server_service_type
+  changed_when: false
+
+- name: Reject a public Argo CD API service
+  ansible.builtin.assert:
+    that:
+      - argocd_server_service_type.stdout == 'ClusterIP'
+    fail_msg: Argo CD server must remain a ClusterIP service; do not expose its UI or API publicly.

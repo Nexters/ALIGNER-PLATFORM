@@ -268,11 +268,36 @@
         label: "{{ item.spec.nodeName }}:{{ item.metadata.name }}"
       register: cilium_agent_rss_and_metrics
 
-    - name: Write secret-free Gate evidence
+    - name: Fail closed until the manual VM-stop evidence is reviewed
+      ansible.builtin.assert:
+        that:
+          - cilium_gate_vm_stop_evidence_approved | bool
+          - cilium_gate_vm_stop_evidence_ref | length > 0
+        fail_msg: >-
+          Cilium Gate remains FAIL: VM-stop is manual only. Record reviewed evidence
+          in cilium_gate_vm_stop_evidence_ref; do not stop a VM from this playbook.
+
+    - name: Capture the current cluster identity
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, "{{ cilium_gate_kubeconfig }}", get, namespace, kube-system, "--output=jsonpath={.metadata.uid}"]
+      changed_when: false
+      register: cilium_gate_cluster_uid
+
+    - name: Capture the successful Gate timestamp
+      ansible.builtin.command:
+        argv: [date, -u, +%Y-%m-%dT%H:%M:%SZ]
+      changed_when: false
+      register: cilium_gate_checked_at
+
+    - name: Write secret-free successful Gate evidence
       ansible.builtin.copy:
         dest: "{{ cilium_gate_artifacts_dir }}/gate-summary.yml"
         mode: "0600"
         content: |
+          result: PASS
+          checked_at_utc: {{ cilium_gate_checked_at.stdout | to_json }}
+          cluster_uid: {{ cilium_gate_cluster_uid.stdout | to_json }}
+          server_nodes: {{ ((cilium_agents.stdout | from_json).items | map(attribute='spec.nodeName') | list | sort) | to_json }}
           cilium_chart: "{{ (cilium_helm_metadata.stdout | from_json).chart }}"
           cilium_cli: {{ cilium_cli_version.stdout | to_json }}
           cilium_status: {{ cilium_status.stdout | to_json }}
@@ -288,12 +313,3 @@
           rss_and_metric_series: {{ cilium_agent_rss_and_metrics.results | map(attribute='stdout') | list | to_json }}
           vm_stop_evidence_approved: {{ cilium_gate_vm_stop_evidence_approved | bool | to_json }}
           vm_stop_evidence_ref: {{ cilium_gate_vm_stop_evidence_ref | to_json }}
-
-    - name: Fail closed until the manual VM-stop evidence is reviewed
-      ansible.builtin.assert:
-        that:
-          - cilium_gate_vm_stop_evidence_approved | bool
-          - cilium_gate_vm_stop_evidence_ref | length > 0
-        fail_msg: >-
-          Cilium Gate remains FAIL: VM-stop is manual only. Record reviewed evidence
-          in cilium_gate_vm_stop_evidence_ref; do not stop a VM from this playbook.

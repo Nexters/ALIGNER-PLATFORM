@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: aligner-api
+  labels:
+    app.kubernetes.io/name: aligner-api
+    app.kubernetes.io/part-of: aligner
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aligner-api

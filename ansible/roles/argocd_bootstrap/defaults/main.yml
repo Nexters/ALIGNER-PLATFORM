@@ -1,0 +1,14 @@
+---
+# Reviewed from the upstream v3.5.0 GitHub release on 2026-08-12.
+argocd_bootstrap_version: 'v3.5.0'
+argocd_bootstrap_install_manifest_url: "https://raw.githubusercontent.com/argoproj/argo-cd/{{ argocd_bootstrap_version }}/manifests/ha/install.yaml"
+argocd_bootstrap_install_manifest_checksum: 'sha256:65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6'
+argocd_bootstrap_install_manifest_path: /var/tmp/argocd-ha-install-v3.5.0.yaml
+argocd_bootstrap_kubeconfig: /etc/rancher/k3s/k3s.yaml
+argocd_bootstrap_runtime_approved: false
+
+argocd_bootstrap_git_repo_url: https://github.com/Nexters/ALIGNER-PLATFORM.git
+argocd_bootstrap_git_revision: main
+argocd_bootstrap_destination_server: https://kubernetes.default.svc
+argocd_bootstrap_root_application_path: /var/tmp/aligner-root-app.yaml
+argocd_bootstrap_kustomize_config_path: /var/tmp/argocd-cm-kustomize.yaml
