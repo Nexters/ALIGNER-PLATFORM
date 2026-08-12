@@ -16,7 +16,7 @@
 | 4 | [#39 GitOps infrastructure](https://github.com/Nexters/ALIGNER-PLATFORM/pull/39) | PR 3 branch | Gateway API, Traefik, cert-manager, CNPG/Barman, ESO, Alloy |
 | 5 | [#40 data services](https://github.com/Nexters/ALIGNER-PLATFORM/pull/40) | PR 4 branch | Data-B guard, PostgreSQL, R2 backup 계약, Redis, PITR validator |
 | 6 | [#41 application/production gates](https://github.com/Nexters/ALIGNER-PLATFORM/pull/41) | PR 5 branch | API render artifacts, Argo bootstrap, production/DR validators |
-| 7 | Handoff PR | PR 6 branch | 이 문서만 포함 |
+| 7 | [#42 project Handoff](https://github.com/Nexters/ALIGNER-PLATFORM/pull/42) | PR 6 branch | 이 문서만 포함 |
 
 병합 시 #36을 먼저 `main`에 병합하고, #37의 base를 `main`으로 변경하여 diff와 checks를 재확인한 다음 병합한다. 같은 방식으로 #38부터 Handoff PR까지 한 개씩 base를 `main`으로 바꿔 순서대로 병합한다. 중간 branch를 먼저 삭제하지 않는다.
 
