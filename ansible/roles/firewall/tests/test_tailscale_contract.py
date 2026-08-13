@@ -19,6 +19,8 @@ class TailscaleFirewallContractTest(unittest.TestCase):
         self.assertIn("firewall_tailscale_interface in ansible_interfaces", self.tasks)
         self.assertIn(".BackendState == 'Running'", self.tasks)
         self.assertIn("firewall_tailscale_server_tag", self.tasks)
+        self.assertIn("Self.Tags | default([])", self.tasks)
+        self.assertGreaterEqual(self.tasks.count('host: "{{ inventory_hostname }}"'), 2)
 
     def test_template_allows_only_management_ports_on_tailscale(self) -> None:
         self.assertIn(
@@ -27,6 +29,12 @@ class TailscaleFirewallContractTest(unittest.TestCase):
         )
         self.assertNotIn("wg0", self.template)
         self.assertNotIn("management_gateway", self.template)
+        self.assertIn("firewall_k3s_node_private_ips | join", self.template)
+        self.assertNotIn("ip saddr {{ firewall_vpc_cidr }}", self.template)
+
+    def test_retains_root_only_break_glass_rollback_copy(self) -> None:
+        self.assertIn("dest: /etc/nftables.conf.aligner-pre-firewall", self.tasks)
+        self.assertNotIn("Remove rollback copy after successful validation", self.tasks)
 
 
 if __name__ == "__main__":

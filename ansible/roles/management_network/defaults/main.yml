@@ -7,3 +7,4 @@ management_network_tailscale_auth_key_file: ""
 management_network_tailscale_remote_auth_key_file: /run/aligner-tailscale-auth.key
 management_network_remove_legacy_wireguard: false
 management_network_legacy_wireguard_removal_approved: false
+management_network_tailscale_firewall_proven: false

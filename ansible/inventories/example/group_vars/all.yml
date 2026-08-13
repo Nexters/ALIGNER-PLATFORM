@@ -44,11 +44,9 @@ firewall_tailscale_interface: tailscale0
 firewall_tailscale_server_tag: "tag:aligner-prod"
 firewall_vpc_cidr: "10.20.0.0/16"
 firewall_gabia_lb_private_ip: ""
-firewall_tailscale_ssh_check_command: []
 firewall_tailscale_api_check_command: []
 # Per-host runtime example (do not put auth keys in this file):
 # firewall_runtime_approved: true
 # firewall_tailscale_access_proven: true
 # firewall_gabia_lb_private_ip: "10.20.0.10"
-# firewall_tailscale_ssh_check_command: ["ssh", "-o", "BatchMode=yes", "ansible@k3s-01", "true"]
 # firewall_tailscale_api_check_command: ["kubectl", "--context", "aligner-tailscale", "get", "--raw=/livez"]

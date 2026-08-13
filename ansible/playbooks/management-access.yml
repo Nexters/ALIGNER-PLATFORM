@@ -1,9 +1,10 @@
 ---
-# 최초 1회 공인 IP의 임시 /32 SSH 경로로 실행한다.
-# 성공 후 사설 inventory로 전환하고 임시 SSH 규칙을 닫는다.
+# 최초 등록은 공인 IP의 임시 /32 SSH 경로로 실행한다. 제거 단계는
+# 방화벽 전환 뒤 Tailscale MagicDNS inventory로 별도 실행한다.
 - name: Tailscale 관리 경로 부트스트랩
   hosts: k3s_servers
   become: true
   gather_facts: true
+  serial: 1
   roles:
     - management_network

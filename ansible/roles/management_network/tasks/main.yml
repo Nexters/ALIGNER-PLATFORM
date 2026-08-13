@@ -5,6 +5,9 @@
       - management_network_tailscale_runtime_approved | bool
       - groups['all'] | sort == ['k3s-01', 'k3s-02', 'k3s-03']
       - inventory_hostname in ['k3s-01', 'k3s-02', 'k3s-03']
+      - ansible_distribution == 'Ubuntu'
+      - ansible_distribution_version is version('24.04', '==')
+      - ansible_distribution_release == 'noble'
       - management_network_tailscale_version is match('^[0-9]+\\.[0-9]+\\.[0-9]+$')
       - management_network_tailscale_server_tag is match('^tag:[a-z0-9-]+$')
     fail_msg: >-
@@ -71,7 +74,6 @@
       - management_network_tailscale_local_auth_key.stat.mode in ['0400', '0600']
     fail_msg: Tailscale bootstrap key must be an ignored regular file with mode 0400 or 0600.
   when: management_network_tailscale_needs_auth | bool
-  no_log: true
 
 - name: Tagged Tailscale server 인증
   when: management_network_tailscale_needs_auth | bool
@@ -128,7 +130,9 @@
     that:
       - (management_network_tailscale_status_after.stdout | from_json).BackendState == 'Running'
       - (management_network_tailscale_status_after.stdout | from_json).Self.HostName == inventory_hostname
-      - management_network_tailscale_server_tag in (management_network_tailscale_status_after.stdout | from_json).Self.Tags
+      - >-
+        management_network_tailscale_server_tag in
+        ((management_network_tailscale_status_after.stdout | from_json).Self.Tags | default([]))
     fail_msg: Tailscale did not establish the expected tagged management identity.
 
 - name: Legacy WireGuard service 확인
@@ -148,16 +152,31 @@
   ansible.builtin.assert:
     that:
       - management_network_legacy_wireguard_removal_approved | bool
+      - management_network_tailscale_firewall_proven | bool
       - ansible_host == inventory_hostname
       - >-
         management_network_legacy_wireguard_paths.files
-        | map(attribute='path') | map('basename')
-        | difference(['wg0.conf']) | length == 0
+        | map(attribute='path') | list
+        | difference(['/etc/wireguard/wg0.conf']) | length == 0
     fail_msg: >-
       Legacy removal requires a separate approval, an authenticated Ansible
       connection through the node's Tailscale MagicDNS name, and no unknown
       content below /etc/wireguard.
   when: management_network_remove_legacy_wireguard | bool
+
+- name: WireGuard 제거 전 controller MagicDNS SSH 경로 확인
+  ansible.builtin.wait_for:
+    host: "{{ inventory_hostname }}"
+    port: 22
+    state: started
+    connect_timeout: 5
+    timeout: 10
+  delegate_to: localhost
+  become: false
+  when:
+    - management_network_remove_legacy_wireguard | bool
+    - management_network_legacy_wireguard_removal_approved | bool
+    - management_network_tailscale_firewall_proven | bool
 
 - name: Legacy WireGuard service 중지와 비활성화
   ansible.builtin.systemd_service:

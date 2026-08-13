@@ -21,22 +21,22 @@ ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook \
   -e management_network_tailscale_auth_key_file="$PWD/.runtime/tailscale/bootstrap.authkey"
 ```
 
-세 노드의 MagicDNS SSH를 아래와 같이 검증한 뒤, Tailscale inventory를 겹쳐서 다시
-실행해야만 기존 WireGuard를 제거할 수 있다.
+기존 공인 `/32` 또는 WireGuard 연결을 유지한 채 `make tailscale-cutover`로 세 노드를
+`serial: 1` 전환한다. 각 노드에서 Tailscale 신원 확인, MagicDNS 경유 OpenSSH 확인,
+Tailscale 허용 방화벽 적용과 재확인이 끝난 뒤 다음 노드로 이동한다. 그 후에만
+Tailscale inventory를 겹쳐 기존 WireGuard를 제거한다.
 
 ```bash
-ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook \
-  -i .runtime/inventory.yaml \
-  -i ansible/inventories/tailscale/hosts.yml \
-  ansible/playbooks/management-access.yml \
-  -e management_network_tailscale_runtime_approved=true \
-  -e management_network_remove_legacy_wireguard=true \
-  -e management_network_legacy_wireguard_removal_approved=true
+export ALIGNER_TAILSCALE_AUTH_KEY_FILE="$PWD/.runtime/tailscale/bootstrap.authkey"
+make tailscale-cutover
+make tailscale-remove-wireguard
 ```
 
-role은 인증된 MagicDNS Ansible SSH 연결, Tailscale `Running`, hostname,
+role은 인증된 MagicDNS Ansible OpenSSH 연결, Tailscale 허용 방화벽 증거, `Running`, hostname,
 `tag:aligner-prod`를 모두 확인한 후에만 `wg-quick@wg0`, `/etc/wireguard`, WireGuard
 패키지를 제거한다. 서버 등록이 끝나면 Tailscale 콘솔에서 bootstrap auth key를 revoke한다.
+등록이 일부 노드에서 실패해도 원격 임시 key 파일은 role의 `always` 단계에서 제거된다.
+실패한 bootstrap auth key도 즉시 revoke하고 새 key로만 재시도한다.
 
 ## 접근 검증
 
@@ -63,6 +63,6 @@ kubectl --server=https://k3s-01:6443 get --raw=/readyz
 
 ## 공인망 차단 Gate
 
-`verify-management-exposure.yml`에 노드별 Tailscale SSH 3개, 공인 22/6443/5432/6379
+`verify-management-exposure.yml`에 노드별 MagicDNS OpenSSH 3개, 공인 22/6443/5432/6379
 negative check 4개, K3s 설치 후 API check 3개를 Git 밖 vars로 제공한다.
 실행 시각·break-glass 연습·임시 규칙 삭제 증적이 없으면 fail-closed한다.

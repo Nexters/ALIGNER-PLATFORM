@@ -1,4 +1,4 @@
-.PHONY: lint collections render bootstrap-access bootstrap-inventory bootstrap-management inventory lockdown site verify verify-cilium test-verify test-failover-drill test-etcd-recovery test-k3s-cilium-upgrade test-full-rebuild test-postgresql-pitr
+.PHONY: lint collections render bootstrap-access bootstrap-inventory bootstrap-management tailscale-cutover tailscale-remove-wireguard inventory lockdown site verify verify-cilium test-verify test-failover-drill test-etcd-recovery test-k3s-cilium-upgrade test-full-rebuild test-postgresql-pitr
 
 ANSIBLE_CONFIG := $(CURDIR)/ansible/ansible.cfg
 ANSIBLE_COLLECTIONS_PATH := $(CURDIR)/.ansible/collections
@@ -28,6 +28,13 @@ bootstrap-inventory:
 
 bootstrap-management:
 	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/bootstrap-inventory.yaml ansible/playbooks/management-access.yml
+
+tailscale-cutover:
+	@test -n "$$ALIGNER_TAILSCALE_AUTH_KEY_FILE" || (echo "ALIGNER_TAILSCALE_AUTH_KEY_FILE이 필요합니다"; exit 1)
+	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/bootstrap-inventory.yaml ansible/playbooks/tailscale-cutover.yml -e management_network_tailscale_runtime_approved=true -e management_network_tailscale_auth_key_file="$$ALIGNER_TAILSCALE_AUTH_KEY_FILE" -e firewall_runtime_approved=true -e firewall_tailscale_access_proven=true
+
+tailscale-remove-wireguard:
+	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/inventory.yaml -i $(TAILSCALE_INVENTORY) ansible/playbooks/management-access.yml -e management_network_tailscale_runtime_approved=true -e management_network_remove_legacy_wireguard=true -e management_network_legacy_wireguard_removal_approved=true -e management_network_tailscale_firewall_proven=true
 
 inventory:
 	gabiactl inventory -f infra/bootstrap/desired-infrastructure.yaml --connect-via private -o .runtime/inventory.yaml

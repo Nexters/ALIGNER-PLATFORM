@@ -24,6 +24,11 @@
       - public-tcp-5432
       - public-tcp-6379
       - public-tcp-6443
+    management_exposure_expected_public_negative_ports:
+      public-tcp-22: 22
+      public-tcp-5432: 5432
+      public-tcp-6379: 6379
+      public-tcp-6443: 6443
 
   tasks:
     - name: Stop before any verification command without explicit evidence
@@ -57,7 +62,32 @@
           stage, evidence reference, and every required read-only check in an untracked
           vars file. No verification command has been executed.
 
-    - name: Verify Tailscale reaches every node over SSH
+    - name: Bind MagicDNS OpenSSH checks to the three nodes
+      ansible.builtin.assert:
+        that:
+          - item.host == (item.name | regex_replace('^tailscale-', ''))
+        fail_msg: Each OpenSSH check must target its matching MagicDNS node.
+      loop: "{{ management_exposure_tailscale_ssh_checks }}"
+      loop_control:
+        label: "tailscale-ssh-contract"
+
+    - name: Bind public negative checks to their required ports
+      ansible.builtin.assert:
+        that:
+          - item.port | int == management_exposure_expected_public_negative_ports[item.name] | int
+        fail_msg: Public exposure check names must use their exact required ports.
+      loop: "{{ management_exposure_public_negative_checks }}"
+      when: management_exposure_stage != 'pre-lockdown'
+
+    - name: Bind Kubernetes API checks to MagicDNS HTTPS ready endpoints
+      ansible.builtin.assert:
+        that:
+          - item.url == 'https://' ~ (item.name | regex_replace('^tailscale-', '')) ~ ':6443/readyz'
+        fail_msg: Each API check must use its matching MagicDNS HTTPS 6443 ready endpoint.
+      loop: "{{ management_exposure_tailscale_api_checks }}"
+      when: management_exposure_stage == 'post-k3s'
+
+    - name: Verify MagicDNS OpenSSH reaches every node
       ansible.builtin.wait_for:
         host: "{{ item.host }}"
         port: 22

@@ -7,6 +7,8 @@
     firewall_public_interfaces: >-
       {{ ansible_facts | dict2items | selectattr('value.ipv4', 'defined')
       | selectattr('value.ipv4.address', 'equalto', public_ip) | map(attribute='key') | list }}
+    firewall_k3s_node_private_ips: >-
+      {{ groups['k3s_servers'] | map('extract', hostvars, 'private_ip') | list | sort }}
   changed_when: false
 
 - name: Read Tailscale identity before firewall mutation
@@ -27,17 +29,23 @@
       - firewall_tailscale_interface in ansible_interfaces
       - (firewall_tailscale_status.stdout | from_json).BackendState == 'Running'
       - (firewall_tailscale_status.stdout | from_json).Self.HostName == inventory_hostname
-      - firewall_tailscale_server_tag in (firewall_tailscale_status.stdout | from_json).Self.Tags
+      - >-
+        firewall_tailscale_server_tag in
+        ((firewall_tailscale_status.stdout | from_json).Self.Tags | default([]))
+      - firewall_k3s_node_private_ips | length == 3
+      - firewall_k3s_node_private_ips | unique | length == 3
       - firewall_gabia_lb_private_ip | length > 0
-      - firewall_tailscale_ssh_check_command | length > 0
     fail_msg: >-
       Firewall is intentionally not applied. Set the explicit approval and per-node
       proof only after the tagged Tailscale identity and SSH path are verified.
 
-- name: Check new Tailscale SSH path before firewall mutation
-  ansible.builtin.command:
-    argv: "{{ firewall_tailscale_ssh_check_command }}"
-  changed_when: false
+- name: Check new Tailscale OpenSSH path before firewall mutation
+  ansible.builtin.wait_for:
+    host: "{{ inventory_hostname }}"
+    port: 22
+    state: started
+    connect_timeout: 5
+    timeout: 10
   delegate_to: localhost
   become: false
 
@@ -136,10 +144,13 @@
         enabled: true
         state: started
 
-    - name: Check new Tailscale SSH path after firewall change
-      ansible.builtin.command:
-        argv: "{{ firewall_tailscale_ssh_check_command }}"
-      changed_when: false
+    - name: Check new Tailscale OpenSSH path after firewall change
+      ansible.builtin.wait_for:
+        host: "{{ inventory_hostname }}"
+        port: 22
+        state: started
+        connect_timeout: 5
+        timeout: 10
       delegate_to: localhost
       become: false
 
@@ -203,12 +214,3 @@
       ansible.builtin.file:
         path: /etc/nftables.conf.aligner-candidate
         state: absent
-
-    - name: Remove rollback copy after successful validation
-      ansible.builtin.file:
-        path: /etc/nftables.conf.aligner-pre-firewall
-        state: absent
-      when:
-        - ansible_failed_result is not defined
-        - firewall_nftables_conf is defined
-        - firewall_nftables_conf.stat.exists

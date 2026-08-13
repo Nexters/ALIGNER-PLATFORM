@@ -6,8 +6,8 @@ table inet aligner_firewall {
     iifname "lo" accept
 
     iifname "{{ firewall_tailscale_interface }}" tcp dport { 22, 6443 } accept
-    ip saddr {{ firewall_vpc_cidr }} iifname "{{ firewall_private_interfaces | first }}" tcp dport { 2379, 2380, 6443, 10250 } accept
-    ip saddr {{ firewall_vpc_cidr }} iifname "{{ firewall_private_interfaces | first }}" udp dport 8472 accept
+    ip saddr { {{ firewall_k3s_node_private_ips | join(', ') }} } iifname "{{ firewall_private_interfaces | first }}" tcp dport { 2379, 2380, 6443, 10250 } accept
+    ip saddr { {{ firewall_k3s_node_private_ips | join(', ') }} } iifname "{{ firewall_private_interfaces | first }}" udp dport 8472 accept
     ip saddr {{ firewall_gabia_lb_private_ip }} iifname "{{ firewall_private_interfaces | first }}" tcp dport {{ firewall_nodeport_range }} accept
 
     tcp dport { 22, 2379, 2380, 5432, 6379, 6443, 10250 } drop
