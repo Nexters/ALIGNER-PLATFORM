@@ -7,6 +7,7 @@
   hosts: all
   become: true
   gather_facts: true
+  serial: 1
 
   roles:
     - preflight          # OS·커널·디스크·사설망 사전 검사
@@ -34,7 +35,7 @@
     - cilium
 
 - name: 나머지 K3s 서버 조인
-  hosts: k3s_servers
+  hosts: k3s_servers:!k3s_first_server
   become: true
   serial: 1               # 한 노드씩 순차 조인 — etcd quorum 을 지킨다
   roles:

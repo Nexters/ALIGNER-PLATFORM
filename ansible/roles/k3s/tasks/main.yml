@@ -1,6 +1,152 @@
 ---
-# TODO(Phase 1): k3s 구현
-# docs/architecture/overview.md의 K3s 표준 참조
-- name: k3s — 아직 구현되지 않음
-  ansible.builtin.debug:
-    msg: "TODO: k3s role 구현 필요"
+- name: Refuse an incomplete K3s runtime configuration before mutation
+  ansible.builtin.assert:
+    that:
+      - k3s_runtime_approved | bool
+      - k3s_version == 'v1.36.3+k3s1'
+      - k3s_binary_sha256 is match('^[0-9a-f]{64}$')
+      - k3s_token | length > 0
+      - k3s_etcd_s3_endpoint | length > 0
+      - k3s_etcd_s3_bucket | length > 0
+      - k3s_etcd_s3_access_key | length > 0
+      - k3s_etcd_s3_secret_key | length > 0
+      - groups['k3s_first_server'] | length == 1
+      - groups['k3s_first_server'][0] in groups['k3s_servers']
+      - inventory_hostname in groups['k3s_servers']
+    fail_msg: K3s runtime approval, fixed version, token, and R2 snapshot settings are required.
+  no_log: true
+
+- name: Refuse an unsupported K3s binary architecture
+  ansible.builtin.assert:
+    that:
+      - ansible_architecture == 'x86_64'
+    fail_msg: "The pinned K3s checksum supports x86_64 only, not {{ ansible_architecture }}."
+
+- name: Verify Data-B local PV guard before K3s can deploy local-path provisioner
+  ansible.builtin.command:
+    argv:
+      - "{{ storage_data_b_guard_path }}"
+  changed_when: false
+
+- name: Create K3s configuration directory
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Install pinned K3s binary with SHA-256 verification
+  ansible.builtin.get_url:
+    url: "https://github.com/k3s-io/k3s/releases/download/{{ k3s_version | replace('+', '%2B') }}/k3s"
+    dest: /usr/local/bin/k3s
+    owner: root
+    group: root
+    mode: "0755"
+    checksum: "sha256:{{ k3s_binary_sha256 }}"
+  notify: Restart K3s
+  no_log: true
+
+- name: Verify installed K3s binary version
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - --version
+  register: k3s_version_check
+  changed_when: false
+  failed_when: k3s_version not in k3s_version_check.stdout
+
+- name: Install K3s audit policy
+  ansible.builtin.template:
+    src: audit-policy.yaml.j2
+    dest: /etc/rancher/k3s/audit-policy.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart K3s
+
+- name: Install K3s server configuration
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart K3s
+  no_log: true
+
+- name: Install K3s systemd service
+  ansible.builtin.template:
+    src: k3s.service.j2
+    dest: /etc/systemd/system/k3s.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart K3s
+
+- name: Enable and start K3s
+  ansible.builtin.systemd_service:
+    name: k3s
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Apply K3s configuration changes before readiness checks
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for first-server Kubernetes API readiness
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - kubectl
+      - get
+      - --raw=/readyz
+  register: k3s_api_ready
+  changed_when: false
+  retries: 30
+  delay: 10
+  until: k3s_api_ready.rc == 0 and k3s_api_ready.stdout is search('ok')
+  when: inventory_hostname in groups['k3s_first_server']
+
+- name: Wait for joining server node readiness
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - kubectl
+      - get
+      - node
+      - "{{ inventory_hostname }}"
+      - -o
+      - "jsonpath={.status.conditions[?(@.type=='Ready')].status}"
+  delegate_to: "{{ groups['k3s_first_server'][0] }}"
+  register: k3s_join_node_ready
+  changed_when: false
+  retries: 30
+  delay: 10
+  until: k3s_join_node_ready.stdout == 'True'
+  when: inventory_hostname not in groups['k3s_first_server']
+
+- name: Read first-server encryption configuration hash
+  ansible.builtin.command:
+    argv:
+      - sha256sum
+      - "{{ k3s_data_dir }}/server/cred/encryption-config.json"
+  delegate_to: "{{ groups['k3s_first_server'][0] }}"
+  register: k3s_first_encryption_hash
+  changed_when: false
+
+- name: Read joining-server encryption configuration hash
+  ansible.builtin.command:
+    argv:
+      - sha256sum
+      - "{{ k3s_data_dir }}/server/cred/encryption-config.json"
+  register: k3s_encryption_hash
+  changed_when: false
+  when: inventory_hostname not in groups['k3s_first_server']
+
+- name: Require matching encryption configuration on joining server
+  ansible.builtin.assert:
+    that:
+      - k3s_encryption_hash.stdout.split()[0] == k3s_first_encryption_hash.stdout.split()[0]
+    fail_msg: Joining server encryption configuration does not match k3s-01.
+  when: inventory_hostname not in groups['k3s_first_server']

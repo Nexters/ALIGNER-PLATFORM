@@ -29,3 +29,6 @@ secrets/plaintext/
 .idea/
 .vscode/
 .DS_Store
+.ansible/
+__pycache__/
+*.py[cod]

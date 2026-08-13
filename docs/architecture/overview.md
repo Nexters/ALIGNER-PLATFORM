@@ -155,6 +155,12 @@ L3  Argo CD
 - Argo CD self-heal과 HTTPRoute TLS/host/path 검증
 - 실제 자원 사용량으로 request/limit 갱신
 
+`make verify`는 위 항목 중 자동으로 읽을 수 있는 상태만 검증한다. 결과는 Git 밖의
+`.runtime/production-gate/<UTC timestamp>.json`에 남으며 Secret 또는 kubeconfig 내용은 기록하지
+않는다. 현재 GitOps는 앱·Gateway runtime·Certificate runtime을 의도적으로 제외하므로, 해당
+객체가 없어 production gate는 정상적으로 **FAIL** 한다. Cilium connectivity와 External LB health는
+각각 `.runtime/cilium-gate/gate-summary.yml`과 Git 밖의 승인된 증적 참조가 있어야 한다.
+
 ## 정본과 기록
 
 - 이 문서가 현행 아키텍처 정본이다.

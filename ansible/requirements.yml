@@ -1,6 +1,8 @@
 ---
 collections:
   - name: kubernetes.core
-    version: "REPLACE_ME"   # Phase 0에서 검증 후 고정 (helm/kubeconfig 모듈에 사용)
+    version: "6.4.0"        # ansible-core 2.16+; helm/kubeconfig 모듈에 사용
   - name: ansible.posix
-    version: "REPLACE_ME"   # mount, sysctl 등
+    version: "2.1.0"        # ansible-core 2.16+; mount, sysctl 등
+  - name: community.general
+    version: "9.5.1"        # filesystem 모듈 — storage role의 안전한 포맷에 사용
