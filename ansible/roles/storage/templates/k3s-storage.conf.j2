@@ -1,0 +1,4 @@
+# Both data volumes must be mounted; starting K3s on the root filesystem is forbidden.
+[Unit]
+RequiresMountsFor={{ storage_data_a_mount_path }} {{ storage_data_b_mount_path }}
+After=local-fs.target

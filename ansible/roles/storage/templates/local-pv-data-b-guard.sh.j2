@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+expected_uuid="$(tr -d '\n' < {{ storage_data_b_guard_marker_path }})"
+actual_uuid="$(findmnt --noheadings --output UUID --target {{ storage_data_b_mount_path }} | tr -d '[:space:]')"
+
+[ -n "$expected_uuid" ]
+[ "$actual_uuid" = "$expected_uuid" ]

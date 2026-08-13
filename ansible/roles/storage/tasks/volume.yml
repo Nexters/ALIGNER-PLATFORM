@@ -1,0 +1,136 @@
+---
+- name: Read block-device facts — {{ storage_volume.name }}
+  ansible.builtin.command:
+    argv:
+      - lsblk
+      - --json
+      - --bytes
+      - --output
+      - PATH,TYPE,SIZE,FSTYPE,MOUNTPOINTS,UUID
+      - "{{ storage_volume.device }}"
+  register: storage_lsblk
+  changed_when: false
+
+- name: Select device fact — {{ storage_volume.name }}
+  ansible.builtin.set_fact:
+    storage_device_fact: >-
+      {{ (storage_lsblk.stdout | from_json).blockdevices |
+      selectattr('path', 'equalto', storage_volume.device) | list }}
+
+- name: Classify blank device — {{ storage_volume.name }}
+  ansible.builtin.set_fact:
+    storage_device_is_blank: >-
+      {{ storage_device_fact | length == 1 and
+      (storage_device_fact[0].fstype | default('', true) | length == 0) }}
+
+- name: Require expected blank or managed whole disk — {{ storage_volume.name }}
+  ansible.builtin.assert:
+    that:
+      - storage_device_fact | length == 1
+      - storage_device_fact[0].type == 'disk'
+      - storage_device_fact[0].size | int == storage_volume.expected_size_bytes | int
+      - >-
+        storage_device_fact[0].fstype | default('', true) in
+        ['', storage_filesystem_type]
+      - >-
+        storage_device_fact[0].uuid | default('', true) in
+        ['', storage_volume.uuid]
+      - >-
+        storage_device_fact[0].mountpoints | default([]) |
+        reject('equalto', none) | reject('equalto', '') |
+        reject('equalto', storage_volume.mount_path) | list | length == 0
+      - storage_device_fact[0].children | default([]) | length == 0
+    fail_msg: >-
+      {{ storage_volume.name }} {{ storage_volume.device }}는 예상 크기의 빈 디스크 또는
+      inventory UUID와 일치하는 관리 대상 filesystem이 아닙니다.
+
+- name: Read on-disk signatures — {{ storage_volume.name }}
+  ansible.builtin.command:
+    argv:
+      - wipefs
+      - --noheadings
+      - --output
+      - TYPE,UUID,OFFSET
+      - "{{ storage_volume.device }}"
+  register: storage_wipefs
+  changed_when: false
+  failed_when: storage_wipefs.rc not in [0, 1]
+
+- name: Refuse existing signature or partition table — {{ storage_volume.name }}
+  ansible.builtin.assert:
+    that:
+      - storage_wipefs.stdout | trim | length == 0
+    fail_msg: >-
+      {{ storage_volume.name }} {{ storage_volume.device }}에 기존 filesystem, RAID, LVM 또는 partition signature가 있습니다.
+      storage role은 기존 데이터를 덮어쓰지 않습니다.
+  when: storage_device_is_blank
+
+- name: Create filesystem only after empty-disk guards pass — {{ storage_volume.name }}
+  community.general.filesystem:
+    dev: "{{ storage_volume.device }}"
+    fstype: "{{ storage_filesystem_type }}"
+    opts: "-U {{ storage_volume.uuid }}"
+    force: false
+  when: storage_device_is_blank
+
+- name: Verify filesystem UUID — {{ storage_volume.name }}
+  ansible.builtin.command:
+    argv:
+      - blkid
+      - --match-token
+      - "UUID={{ storage_volume.uuid }}"
+      - --output
+      - device
+  register: storage_blkid
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require inventory UUID match — {{ storage_volume.name }}
+  ansible.builtin.assert:
+    that:
+      - storage_blkid.stdout | trim == storage_volume.device
+    fail_msg: "{{ storage_volume.name }} UUID does not match the inventory UUID."
+  when: not ansible_check_mode
+
+- name: Create mount path — {{ storage_volume.name }}
+  ansible.builtin.file:
+    path: "{{ storage_volume.mount_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ storage_volume.mode }}"
+
+- name: Mount by UUID — {{ storage_volume.name }}
+  ansible.posix.mount:
+    path: "{{ storage_volume.mount_path }}"
+    src: "UUID={{ storage_volume.uuid }}"
+    fstype: "{{ storage_filesystem_type }}"
+    opts: "{{ storage_mount_options }}"
+    state: mounted
+
+- name: Set mount ownership — {{ storage_volume.name }}
+  ansible.builtin.file:
+    path: "{{ storage_volume.mount_path }}"
+    state: directory
+    owner: "{{ storage_volume.owner }}"
+    group: "{{ storage_volume.group }}"
+    mode: "{{ storage_volume.mode }}"
+
+- name: Read free space — {{ storage_volume.name }}
+  ansible.builtin.command:
+    argv:
+      - df
+      - --block-size=1
+      - --output=avail
+      - "{{ storage_volume.mount_path }}"
+  register: storage_df
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Require minimum free space — {{ storage_volume.name }}
+  ansible.builtin.assert:
+    that:
+      - storage_df.stdout_lines[-1] | trim | int >= storage_volume.min_free_bytes | int
+    fail_msg: >-
+      {{ storage_volume.name }} free space is below {{ storage_volume.min_free_bytes }} bytes.
+  when: not ansible_check_mode

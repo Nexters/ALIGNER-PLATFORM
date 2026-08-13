@@ -334,6 +334,9 @@ func inventory(args []string, out io.Writer) error {
 	if err := Validate(d); err != nil {
 		return err
 	}
+	if d.Servers.Count != 3 || strings.Join(d.Servers.Names, ",") != "k3s-01,k3s-02,k3s-03" {
+		return errors.New("inventory requires exactly k3s-01, k3s-02, and k3s-03")
+	}
 	state, err := readStateForServers(d.Environment, d.Servers.Names)
 	if err != nil {
 		return fmt.Errorf("inventory requires sandbox-verified state: %w", err)
@@ -347,11 +350,25 @@ func inventory(args []string, out io.Writer) error {
 		if _, err := netip.ParseAddr(address); err != nil {
 			return fmt.Errorf("inventory %s address for %s is unavailable", *via, name)
 		}
-		hosts[name] = map[string]string{"ansible_host": address}
+		hosts[name] = map[string]string{"ansible_host": address, "private_ip": server.PrivateIP, "public_ip": server.PublicIP}
+	}
+	groupHosts := func(names []string) map[string]any {
+		group := make(map[string]any, len(names))
+		for _, name := range names {
+			group[name] = map[string]any{}
+		}
+		return group
+	}
+	children := map[string]any{
+		"k3s_servers":         map[string]any{"hosts": groupHosts(d.Servers.Names)},
+		"k3s_first_server":    map[string]any{"hosts": groupHosts(d.Servers.Names[:1])},
+		"management_gateways": map[string]any{"hosts": groupHosts(d.Servers.Names[:2])},
 	}
 	var inventory bytes.Buffer
 	encoder := yaml.NewEncoder(&inventory)
-	if err := encoder.Encode(map[string]any{"all": map[string]any{"hosts": hosts}}); err != nil {
+	if err := encoder.Encode(map[string]any{"all": map[string]any{
+		"hosts": hosts, "vars": map[string]string{"vpc_cidr": d.Network.VPCCIDR}, "children": children,
+	}}); err != nil {
 		return err
 	}
 	if err := encoder.Close(); err != nil {

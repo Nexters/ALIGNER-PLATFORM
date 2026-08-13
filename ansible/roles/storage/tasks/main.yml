@@ -1,6 +1,91 @@
 ---
-# TODO(Phase 1): storage 구현
-# docs/architecture/overview.md의 노드와 스토리지 정책 참조
-- name: storage — 아직 구현되지 않음
-  ansible.builtin.debug:
-    msg: "TODO: storage role 구현 필요"
+- name: Validate explicit storage inventory
+  ansible.builtin.assert:
+    that:
+      - storage_data_a_device is match('^/dev/.+')
+      - storage_data_b_device is match('^/dev/.+')
+      - storage_data_a_device != storage_data_b_device
+      - storage_data_a_expected_size_bytes | int > 0
+      - storage_data_b_expected_size_bytes | int > 0
+      - storage_data_a_uuid is match('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+      - storage_data_b_uuid is match('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+      - storage_data_a_mount_path == k3s_data_dir
+      - storage_data_a_mount_path == '/mnt/k3s'
+      - storage_data_b_mount_path == '/mnt/aligner'
+      - storage_data_a_mount_path != storage_data_b_mount_path
+    fail_msg: >-
+      Data-A/B의 device, 정확한 byte 크기, UUID를 inventory에서 명시해야 합니다.
+      Data-A/B mount는 각각 /mnt/k3s와 /mnt/aligner여야 하며 서로 달라야 합니다.
+
+- name: Prepare systemd drop-in directory for K3s storage dependency
+  ansible.builtin.file:
+    path: /etc/systemd/system/k3s.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Require Data-A mount before K3s starts
+  ansible.builtin.template:
+    src: k3s-storage.conf.j2
+    dest: /etc/systemd/system/k3s.service.d/10-storage.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Configure Data-A and Data-B volumes
+  ansible.builtin.include_tasks: volume.yml
+  loop:
+    - name: Data-A
+      device: "{{ storage_data_a_device }}"
+      expected_size_bytes: "{{ storage_data_a_expected_size_bytes }}"
+      uuid: "{{ storage_data_a_uuid }}"
+      mount_path: "{{ storage_data_a_mount_path }}"
+      owner: "{{ storage_data_a_owner }}"
+      group: "{{ storage_data_a_group }}"
+      mode: "{{ storage_data_a_mode }}"
+      min_free_bytes: "{{ storage_data_a_min_free_bytes }}"
+    - name: Data-B
+      device: "{{ storage_data_b_device }}"
+      expected_size_bytes: "{{ storage_data_b_expected_size_bytes }}"
+      uuid: "{{ storage_data_b_uuid }}"
+      mount_path: "{{ storage_data_b_mount_path }}"
+      owner: "{{ storage_data_b_owner }}"
+      group: "{{ storage_data_b_group }}"
+      mode: "{{ storage_data_b_mode }}"
+      min_free_bytes: "{{ storage_data_b_min_free_bytes }}"
+  loop_control:
+    loop_var: storage_volume
+
+- name: Create Data-B local PV guard executable directory
+  ansible.builtin.file:
+    path: "{{ storage_data_b_guard_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install Data-B local PV fail-closed guard
+  ansible.builtin.template:
+    src: local-pv-data-b-guard.sh.j2
+    dest: "{{ storage_data_b_guard_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create Data-B local PV guard marker directory
+  ansible.builtin.file:
+    path: "{{ storage_data_b_guard_marker_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Record the verified Data-B UUID for the local PV guard
+  ansible.builtin.copy:
+    dest: "{{ storage_data_b_guard_marker_path }}"
+    content: "{{ storage_data_b_uuid }}\n"
+    owner: root
+    group: root
+    mode: "0644"

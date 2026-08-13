@@ -41,6 +41,18 @@ func TestValidateRejectsMismatchedListenerPair(t *testing.T) {
 	}
 }
 
+func TestInventoryRequiresFixedThreeNodeTopology(t *testing.T) {
+	for _, replacement := range []string{
+		"count: 1, names: [k3s-01]",
+		"count: 3, names: [control-a, control-b, control-c]",
+	} {
+		d := writeDesired(t, strings.Replace(validYAML, "count: 2, names: [k3s-01, k3s-02]", replacement, 1))
+		if err := Run([]string{"inventory", "-f", d, "--connect-via", "private", "-o", filepath.Join(t.TempDir(), "inventory.yml")}, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "exactly k3s-01") {
+			t.Fatalf("topology error = %v", err)
+		}
+	}
+}
+
 func TestMutationsFailClosedWithoutCreatingState(t *testing.T) {
 	chdir(t)
 	d := writeDesired(t, validYAML)
@@ -90,11 +102,11 @@ func TestAccessOnlyAllowsDeclaredTargetsAnd32(t *testing.T) {
 
 func TestInventoryUsesStateWithoutCredentials(t *testing.T) {
 	chdir(t)
-	d := writeDesired(t, validYAML)
+	d := writeDesired(t, strings.Replace(validYAML, "count: 2, names: [k3s-01, k3s-02]", "count: 3, names: [k3s-01, k3s-02, k3s-03]", 1))
 	if err := os.MkdirAll(".runtime", 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(stateFile, []byte(`{"environment":"sandbox","servers":{"k3s-01":{"id":"server-1","private_ip":"10.20.0.10"},"k3s-02":{"id":"server-2","private_ip":"10.20.0.11"}}}`), 0600); err != nil {
+	if err := os.WriteFile(stateFile, []byte(`{"environment":"sandbox","servers":{"k3s-01":{"id":"server-1","private_ip":"10.20.0.10"},"k3s-02":{"id":"server-2","private_ip":"10.20.0.11"},"k3s-03":{"id":"server-3","private_ip":"10.20.0.12"}}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	output := filepath.Join(t.TempDir(), "inventory.yaml")
@@ -223,11 +235,11 @@ func TestReconcileResumesCompletedPrefixAfterFailure(t *testing.T) {
 
 func TestInventoryUsesPublicAndPrivateRecordedServerAddresses(t *testing.T) {
 	chdir(t)
-	d := writeDesired(t, validYAML)
+	d := writeDesired(t, strings.Replace(validYAML, "count: 2, names: [k3s-01, k3s-02]", "count: 3, names: [k3s-01, k3s-02, k3s-03]", 1))
 	if err := os.MkdirAll(".runtime", 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(stateFile, []byte(`{"environment":"sandbox","servers":{"k3s-01":{"id":"server-1","public_ip":"203.0.113.10","private_ip":"10.20.0.10"},"k3s-02":{"id":"server-2","public_ip":"203.0.113.11","private_ip":"10.20.0.11"}}}`), 0600); err != nil {
+	if err := os.WriteFile(stateFile, []byte(`{"environment":"sandbox","servers":{"k3s-01":{"id":"server-1","public_ip":"203.0.113.10","private_ip":"10.20.0.10"},"k3s-02":{"id":"server-2","public_ip":"203.0.113.11","private_ip":"10.20.0.11"},"k3s-03":{"id":"server-3","public_ip":"203.0.113.12","private_ip":"10.20.0.12"}}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	for _, via := range []struct{ via, address string }{{"public", "203.0.113.10"}, {"private", "10.20.0.10"}} {
@@ -236,7 +248,11 @@ func TestInventoryUsesPublicAndPrivateRecordedServerAddresses(t *testing.T) {
 			t.Fatal(err)
 		}
 		b, err := os.ReadFile(output)
-		if err != nil || !strings.Contains(string(b), "ansible_host: "+via.address) {
+		if err != nil || !strings.Contains(string(b), "ansible_host: "+via.address) ||
+			!strings.Contains(string(b), "k3s_servers:") ||
+			!strings.Contains(string(b), "k3s_first_server:") ||
+			!strings.Contains(string(b), "management_gateways:") ||
+			!strings.Contains(string(b), "private_ip:") || !strings.Contains(string(b), "public_ip:") {
 			t.Fatalf("%s inventory = %s, %v", via.via, b, err)
 		}
 	}

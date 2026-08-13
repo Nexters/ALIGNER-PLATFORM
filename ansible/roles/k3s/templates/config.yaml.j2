@@ -4,6 +4,7 @@
 
 data-dir: "{{ k3s_data_dir }}"
 secrets-encryption: true
+default-local-storage-path: "{{ application_data_dir }}"
 
 tls-san:
 {% for ip in k3s_node_ips %}
@@ -26,8 +27,16 @@ disable:
   - servicelb    # 가비아 External LB 와 역할 중복
 
 etcd-snapshot-schedule-cron: "0 */6 * * *"
-etcd-snapshot-retention: 28
-etcd-s3: true    # Cloudflare R2 hot/etcd/ (S3 호환)
+etcd-snapshot-retention: {{ k3s_etcd_s3_retention }}
+etcd-s3: true
+etcd-s3-endpoint: "{{ k3s_etcd_s3_endpoint }}"
+etcd-s3-access-key: "{{ k3s_etcd_s3_access_key }}"
+etcd-s3-secret-key: "{{ k3s_etcd_s3_secret_key }}"
+etcd-s3-bucket: "{{ k3s_etcd_s3_bucket }}"
+etcd-s3-region: "{{ k3s_etcd_s3_region }}"
+etcd-s3-folder: "{{ k3s_etcd_s3_folder }}"
+etcd-s3-bucket-lookup-type: path
+etcd-s3-retention: {{ k3s_etcd_s3_retention }}
 
 kubelet-arg:
   - "system-reserved=cpu=200m,memory=1Gi"
@@ -47,8 +56,8 @@ write-kubeconfig-mode: "0600"
 
 {% if inventory_hostname not in groups['k3s_first_server'] %}
 server: "https://{{ hostvars[groups['k3s_first_server'][0]]['private_ip'] }}:6443"
-token: "{{ lookup('env', 'K3S_TOKEN') }}"
+token: "{{ k3s_token }}"
 {% else %}
 cluster-init: true
-token: "{{ lookup('env', 'K3S_TOKEN') }}"
+token: "{{ k3s_token }}"
 {% endif %}

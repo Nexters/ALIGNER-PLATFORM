@@ -2,8 +2,19 @@
 # 아키텍처 문서의 고정값. 이 파일이 실제 실행 정본이 된다.
 # 버전을 올릴 때는 이 값을 바꾸고 PR 로 리뷰한다 — latest 를 따라가지 않는다.
 
-k3s_version: "REPLACE_ME"          # Phase 0 에서 stable 채널 검증 후 고정
-cilium_version: "REPLACE_ME"       # Phase 0 에서 고정
+k3s_version: "v1.36.3+k3s1"
+cilium_version: "1.20.0"
+
+# K3s는 mutation 전에 false gate와 token/R2 변수를 모두 검사한다.
+# 비밀값은 private inventory 또는 runtime secret injection으로만 제공한다.
+k3s_runtime_approved: false
+# k3s_token: "<runtime-injected>"
+# k3s_etcd_s3_access_key: "<runtime-injected>"
+# k3s_etcd_s3_secret_key: "<runtime-injected>"
+k3s_etcd_s3_endpoint: "<account-id>.r2.cloudflarestorage.com"
+k3s_etcd_s3_bucket: "<r2-bucket>"
+k3s_etcd_s3_region: "auto"
+k3s_etcd_s3_folder: "hot/etcd"
 
 # K3s cluster-cidr 과 Cilium clusterPoolIPv4PodCIDRList 는 반드시 일치해야 한다.
 # 사후 변경이 불가능하므로 Day 1 에 확정한다.
@@ -14,18 +25,48 @@ k3s_data_dir: "/mnt/k3s"           # Data-A — etcd, containerd 이미지, kube
 application_data_dir: "/mnt/aligner"  # Data-B — PostgreSQL (Redis 는 emptyDir)
 
 # tls-san은 gabiactl inventory의 private_ip를 정본으로 사용한다.
-k3s_node_ips: "{{ groups['k3s_servers'] | map('extract', hostvars, 'private_ip') | list }}"
+k3s_node_ips: >-
+  {{ groups['k3s_servers'] | map('extract', hostvars, 'private_ip') | list }}
 
 # WireGuard 관리망. private key는 Infisical에서 런타임 주입한다.
 wireguard_port: 51820
 wireguard_interface: wg0
-wireguard_vpc_cidr: "10.0.0.0/24"
+wireguard_vpc_cidr: "10.20.0.0/16"
 wireguard_egress_interface: "{{ ansible_default_ipv4.interface }}"
+# false 기본값은 키를 생성하거나 대상 노드를 변경하지 않는 런타임 gate다.
+wireguard_runtime_approved: false
+wireguard_runtime_validate: false
+wireguard_client_profiles_dir: ""
 wireguard_peers: []
 # 예시:
 # wireguard_peers:
 #   - name: operator-a
-#     public_key: "REPLACE_ME"
+#     public_key: "runtime-injected-client-public-key"
 #     allowed_ips:
 #       k3s-01: "10.99.1.11/32"
 #       k3s-02: "10.99.2.11/32"
+# gateway에는 wireguard_peers의 public_key와 allowed_ips만 제공한다.
+# wireguard_client_profiles는 localhost에서만 렌더링한다. 동일한 peer name과
+# runtime-injected-client-private-key, gateway별 allowed_ips를 별도로 제공한다.
+# gateway별 wireguard_public_key와 wireguard_profile_name(primary/secondary)은
+# private inventory 또는 --extra-vars로 런타임에만 제공한다.
+
+# Host firewall. Defaults fail before package/rule changes. Set the approval and
+# proof for each host only after the commands below succeed from a new WG client.
+firewall_runtime_approved: false
+firewall_wireguard_access_proven: false
+firewall_wireguard_cidrs: []
+# k3s-03에는 wg0가 없다. 이 값은 실행 inventory의 management_gateways private_ip와
+# 정확히 같아야 하며, WireGuard gateway의 SNAT된 SSH source만 허용한다.
+firewall_management_gateway_private_ips: []
+firewall_gabia_lb_private_ip: ""
+firewall_wireguard_ssh_check_command: []
+firewall_wireguard_api_check_command: []
+# Per-host runtime example (do not put client keys in this file):
+# firewall_runtime_approved: true
+# firewall_wireguard_access_proven: true
+# firewall_wireguard_cidrs: ["10.99.1.0/24", "10.99.2.0/24"]
+# firewall_management_gateway_private_ips: ["10.20.0.11", "10.20.0.12"]
+# firewall_gabia_lb_private_ip: "10.20.0.10"
+# firewall_wireguard_ssh_check_command: ["ssh", "-o", "BatchMode=yes", "ansible@10.99.1.1", "true"]
+# firewall_wireguard_api_check_command: ["kubectl", "--context", "aligner-primary", "get", "--raw=/livez"]
