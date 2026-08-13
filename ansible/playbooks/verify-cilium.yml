@@ -239,11 +239,41 @@
       loop_control:
         label: "{{ item.spec.nodeName }}:{{ item.metadata.name }}"
 
+    - name: Refresh Cilium agents after replacement
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, "{{ cilium_gate_kubeconfig }}", -n, kube-system, get, pods, -l, k8s-app=cilium, --output=json]
+      changed_when: false
+      register: cilium_agents_after_restart
+
     - name: Capture Cilium agent CPU and memory usage
       ansible.builtin.command:
         argv: [kubectl, --kubeconfig, "{{ cilium_gate_kubeconfig }}", -n, kube-system, top, pod, -l, k8s-app=cilium, --containers]
       changed_when: false
       register: cilium_resource_usage
+
+    - name: Capture node capacity for one-node-loss gate
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, "{{ cilium_gate_kubeconfig }}", get, nodes, --output=json]
+      changed_when: false
+      register: cilium_capacity_nodes
+
+    - name: Capture workload requests for one-node-loss gate
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, "{{ cilium_gate_kubeconfig }}", get, pods, --all-namespaces, --output=json]
+      changed_when: false
+      register: cilium_capacity_pods
+
+    - name: Enforce 85 percent worst-case capacity after one node loss
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ playbook_dir }}/scripts/verify_cilium_capacity.py"
+        stdin: >-
+          {{ {'nodes': cilium_capacity_nodes.stdout | from_json,
+              'pods': cilium_capacity_pods.stdout | from_json} | to_json }}
+      changed_when: false
+      register: cilium_capacity_result
+      no_log: true
 
     - name: Capture Cilium agent RSS and Prometheus metric-series count
       ansible.builtin.command:
@@ -260,10 +290,11 @@
           - -ec
           - >-
             awk '/VmRSS/ {print $2 " " $3}' /proc/1/status;
-            wget -qO- http://127.0.0.1:9962/metrics |
-            awk '!/^#/ {count++} END {print "metric_series " count}'
+            metrics="$(wget -qO- http://127.0.0.1:9962/metrics)";
+            test -n "$metrics";
+            printf '%s\n' "$metrics" | awk '!/^#/ {count++} END {if (count < 1) exit 1; print "metric_series " count}'
       changed_when: false
-      loop: "{{ (cilium_agents.stdout | from_json).items }}"
+      loop: "{{ (cilium_agents_after_restart.stdout | from_json).items }}"
       loop_control:
         label: "{{ item.spec.nodeName }}:{{ item.metadata.name }}"
       register: cilium_agent_rss_and_metrics
@@ -285,6 +316,7 @@
             {{ ((cilium_agents.stdout | from_json).items |
                 map(attribute='spec.nodeName') | list) | to_json }}
           resources: {{ cilium_resource_usage.stdout | to_json }}
+          one_node_loss_capacity: {{ cilium_capacity_result.stdout | to_json }}
           rss_and_metric_series: {{ cilium_agent_rss_and_metrics.results | map(attribute='stdout') | list | to_json }}
           vm_stop_evidence_approved: {{ cilium_gate_vm_stop_evidence_approved | bool | to_json }}
           vm_stop_evidence_ref: {{ cilium_gate_vm_stop_evidence_ref | to_json }}

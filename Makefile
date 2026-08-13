@@ -1,4 +1,4 @@
-.PHONY: lint render bootstrap-access bootstrap-inventory bootstrap-management inventory lockdown site verify
+.PHONY: lint render bootstrap-access bootstrap-inventory bootstrap-management inventory lockdown site verify verify-cilium
 
 lint:
 	ansible-lint ansible/
@@ -33,3 +33,6 @@ site:
 
 verify:
 	ansible-playbook -i .runtime/inventory.yaml ansible/playbooks/verify.yml
+
+verify-cilium:
+	ansible-playbook -i .runtime/inventory.yaml ansible/playbooks/verify-cilium.yml
