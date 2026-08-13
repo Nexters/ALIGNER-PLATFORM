@@ -55,13 +55,20 @@ func Plan(d Desired, state State) ([]Step, error) {
 		return nil, err
 	}
 	resources := desiredResources(d)
+	seen := make(map[string]bool, len(resources))
 	steps := make([]Step, 0, len(resources))
 	for _, resource := range resources {
+		for _, dependency := range resource.DependsOn {
+			if !seen[dependency] {
+				return nil, fmt.Errorf("resource %s depends on %s before it is planned", resource.Identity, dependency)
+			}
+		}
 		change := Create
 		if recorded(state, resource.Identity) {
 			change = Noop
 		}
 		steps = append(steps, Step{Resource: resource, Change: change})
+		seen[resource.Identity] = true
 	}
 	return steps, nil
 }
@@ -76,6 +83,9 @@ func Reconcile(ctx context.Context, d Desired, state State, provider Provider) (
 	steps, err := Plan(d, state)
 	if err != nil {
 		return state, err
+	}
+	if state.Environment != "" && state.Environment != d.Environment {
+		return state, errors.New("state environment does not match desired environment")
 	}
 	state.Environment = d.Environment
 	for _, step := range steps {
@@ -142,6 +152,6 @@ func record(state *State, resource Resource, observed ResourceState) {
 		if state.Servers == nil {
 			state.Servers = make(map[string]ServerState)
 		}
-		state.Servers[name] = ServerState{ID: observed.ID, PublicIP: observed.PublicIP, PrivateIP: observed.PrivateIP}
+		state.Servers[name] = ServerState(observed)
 	}
 }
