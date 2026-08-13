@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: aligner-api-staging
+  namespace: traefik
+  labels:
+    aligner.io/runtime-gate: acme-email-and-public-dns
+spec:
+  secretName: aligner-api-tls-staging
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+  dnsNames:
+    - api.aligner.example.invalid

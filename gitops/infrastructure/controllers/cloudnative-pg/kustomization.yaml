@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # Immutable upstream commits for CNPG v1.30.0 and Barman Cloud Plugin v0.14.0.
+  - https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/4b5e244a7d031f67e025c83c1555e7726ecbbfa1/releases/cnpg-1.30.0.yaml
+  - https://raw.githubusercontent.com/cloudnative-pg/plugin-barman-cloud/1e13020fe5f09fd8fc29ea03828f7b61375b3721/manifest.yaml

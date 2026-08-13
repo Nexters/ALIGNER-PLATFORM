@@ -1,0 +1,40 @@
+# RUNTIME GATE: replace the .invalid email before applying.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+  labels:
+    aligner.io/runtime-gate: acme-email-and-public-dns
+spec:
+  acme:
+    email: ops@replace-before-apply.invalid
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - name: platform
+                namespace: traefik
+                kind: Gateway
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-production
+  labels:
+    aligner.io/runtime-gate: acme-email-and-public-dns
+spec:
+  acme:
+    email: ops@replace-before-apply.invalid
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-production-account-key
+    solvers:
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - name: platform
+                namespace: traefik
+                kind: Gateway

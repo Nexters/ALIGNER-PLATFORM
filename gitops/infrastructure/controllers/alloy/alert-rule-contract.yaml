@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aligner-observability-alert-contract
+  namespace: observability
+  labels:
+    app.kubernetes.io/component: alert-rules
+    app.kubernetes.io/part-of: aligner
+data:
+  README: >-
+    Alert evaluator hook. This repository does not install a PrometheusRule CRD
+    or Grafana Cloud alert evaluator. rules.yaml is intentionally disabled until
+    its source endpoint and exact metric family are captured in the Runtime Gate.
+  rules.yaml.disabled: |
+    groups:
+      - name: aligner-runtime-gated
+        rules:
+          - alert: AlignerApiErrors
+            gate: API HTTP metric family, status label semantics, 5xx query
+          - alert: AlignerApiLatency
+            gate: API histogram metric family, route cardinality policy, p95 query
+          - alert: AlignerNodeDiskLow
+            gate: node filesystem metric family, mount-label allowlist, threshold
+          - alert: AlignerEtcdUnhealthy
+            gate: K3s etcd endpoint and leader/quorum metric families
+          - alert: AlignerEtcdSnapshotFailed
+            gate: K3s snapshot success/failure signal or approved synthetic probe
+          - alert: AlignerCiliumDrops
+            gate: Cilium agent endpoint and drop metric family
+          - alert: AlignerPostgresReplicationLag
+            gate: CNPG exporter endpoint and lag metric unit
+          - alert: AlignerPostgresWalArchiveFailed
+            gate: CNPG exporter endpoint and WAL archive result metric
+          - alert: AlignerPostgresBackupFailed
+            gate: CNPG backup status metric or approved synthetic probe
+          - alert: AlignerCertificateExpiry
+            gate: cert-manager metrics endpoint and certificate expiry metric
+          - alert: AlignerGrafanaUsageBudget
+            gate: Grafana Cloud usage/cardinality datasource and agreed budget

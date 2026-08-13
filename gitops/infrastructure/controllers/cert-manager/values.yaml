@@ -1,0 +1,8 @@
+# cert-manager chart 1.21.1 / controller 1.21.1. Keep CRDs with the controller.
+crds:
+  enabled: true
+  keep: true
+replicaCount: 2
+config:
+  gatewayAPI:
+    enabled: true
