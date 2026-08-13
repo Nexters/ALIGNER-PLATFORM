@@ -5,6 +5,12 @@
 # 전제: 이 role은 site.yml 에서 hosts: localhost, connection: local 로 실행된다.
 #       k3s 첫 서버가 부트스트랩되어 kubeconfig 를 가져올 수 있는 상태여야 한다.
 
+- name: Require the reviewed Cilium version
+  ansible.builtin.assert:
+    that:
+      - cilium_version == '1.20.0'
+    fail_msg: Cilium version must remain pinned to 1.20.0 until reviewed.
+
 - name: Runtime 디렉터리 생성
   ansible.builtin.file:
     path: "{{ playbook_dir }}/../../.runtime"
@@ -20,10 +26,13 @@
   become: true
 
 - name: Kubeconfig API 주소를 WireGuard 경유 사설 IP로 변경
+  vars:
+    k3s_first_server_private_ip: >-
+      {{ hostvars[groups['k3s_first_server'][0]]['private_ip'] }}
   ansible.builtin.replace:
     path: "{{ playbook_dir }}/../../.runtime/kubeconfig"
     regexp: 'server: https://127\.0\.0\.1:6443'
-    replace: "server: https://{{ hostvars[groups['k3s_first_server'][0]]['private_ip'] }}:6443"
+    replace: "server: https://{{ k3s_first_server_private_ip }}:6443"
     mode: "0600"
 
 - name: Cilium Helm repo 추가
@@ -47,5 +56,28 @@
     wait: true
     wait_timeout: 10m
 
-# TODO: cilium status --wait / cilium connectivity test 검증 태스크 추가
-# TODO: docs/roadmap.md의 Cilium Gate RSS·CPU 실측 태스크 추가
+- name: Wait for Cilium agents to be ready
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig={{ playbook_dir }}/../../.runtime/kubeconfig
+      - -n
+      - kube-system
+      - rollout
+      - status
+      - daemonset/cilium
+      - --timeout=10m
+  changed_when: false
+
+- name: Wait for Cilium operator to be ready
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig={{ playbook_dir }}/../../.runtime/kubeconfig
+      - -n
+      - kube-system
+      - rollout
+      - status
+      - deployment/cilium-operator
+      - --timeout=10m
+  changed_when: false

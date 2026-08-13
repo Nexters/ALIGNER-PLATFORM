@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-client-to-web
+  namespace: cilium-gate-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: cilium-gate
+      role: web
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: cilium-gate
+              role: client
+      ports:
+        - protocol: TCP
+          port: 8080
