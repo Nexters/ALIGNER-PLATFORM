@@ -11,7 +11,7 @@
 - 가비아 ID·비밀번호·세션 토큰
 - GitHub PAT · GitHub App Private Key
 - R2 · AWS · Grafana Cloud Access Token
-- WireGuard Private Key
+- Tailscale auth key · API token
 - K3s server token
 - kubeconfig client certificate · private key
 - Terraform state · plan

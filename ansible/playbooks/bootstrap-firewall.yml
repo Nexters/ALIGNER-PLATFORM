@@ -1,0 +1,10 @@
+---
+# 임시 공인 /32 경로를 유지한 채 한 노드씩 Tailscale 방화벽을 최초 구성한다.
+- name: Tailscale 관리망 방화벽 순차 구성
+  hosts: k3s_servers
+  become: true
+  gather_facts: true
+  serial: 1
+  roles:
+    - management_network
+    - firewall

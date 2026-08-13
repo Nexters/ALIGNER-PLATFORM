@@ -41,6 +41,17 @@ func TestValidateRejectsMismatchedListenerPair(t *testing.T) {
 	}
 }
 
+func TestLoadDesiredRejectsPositionalArgsAndMultipleDocuments(t *testing.T) {
+	d := writeDesired(t, validYAML)
+	if _, err := loadDesired([]string{"-f", d, "extra"}); err == nil || !strings.Contains(err.Error(), "unexpected positional") {
+		t.Fatalf("positional args error = %v", err)
+	}
+	d = writeDesired(t, validYAML+"---\nversion: v1\n")
+	if _, err := loadDesired([]string{"-f", d}); err == nil || !strings.Contains(err.Error(), "one YAML document") {
+		t.Fatalf("multiple documents error = %v", err)
+	}
+}
+
 func TestInventoryRequiresFixedThreeNodeTopology(t *testing.T) {
 	for _, replacement := range []string{
 		"count: 1, names: [k3s-01]",
@@ -124,11 +135,12 @@ func TestInventoryUsesStateWithoutCredentials(t *testing.T) {
 
 func TestInventoryRejectsSymlinkOutput(t *testing.T) {
 	chdir(t)
-	d := writeDesired(t, validYAML)
+	threeNodeYAML := strings.Replace(validYAML, "count: 2, names: [k3s-01, k3s-02]", "count: 3, names: [k3s-01, k3s-02, k3s-03]", 1)
+	d := writeDesired(t, threeNodeYAML)
 	if err := os.MkdirAll(".runtime", 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(stateFile, []byte(`{"environment":"sandbox","servers":{"k3s-01":{"id":"server-1","private_ip":"10.20.0.10"},"k3s-02":{"id":"server-2","private_ip":"10.20.0.11"}}}`), 0600); err != nil {
+	if err := os.WriteFile(stateFile, []byte(`{"environment":"sandbox","servers":{"k3s-01":{"id":"server-1","private_ip":"10.20.0.10"},"k3s-02":{"id":"server-2","private_ip":"10.20.0.11"},"k3s-03":{"id":"server-3","private_ip":"10.20.0.12"}}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	target := filepath.Join(t.TempDir(), "target.yaml")
@@ -374,7 +386,7 @@ func TestRunStatusReconcilesRecordedSubnetWithoutMutatingState(t *testing.T) {
 		subnetCode int
 		want       string
 	}{
-		{name: "present", subnetCode: http.StatusOK, want: "remote status: 1 resources present; 3 resource kinds remain read-contract-gated"},
+		{name: "present", subnetCode: http.StatusOK, want: "remote status: 1 recorded resource present; 3 recorded resources remain read-contract-gated"},
 		{name: "missing", subnetCode: http.StatusNotFound, want: "status drift: subnet (subnet-1) is absent remotely"},
 		{name: "service error", subnetCode: http.StatusBadGateway, want: "unexpected HTTP 502"},
 	} {

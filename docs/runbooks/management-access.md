@@ -21,20 +21,19 @@ ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook \
   -e management_network_tailscale_auth_key_file="$PWD/.runtime/tailscale/bootstrap.authkey"
 ```
 
-기존 공인 `/32` 또는 WireGuard 연결을 유지한 채 `make tailscale-cutover`로 세 노드를
-`serial: 1` 전환한다. 각 노드에서 Tailscale 신원 확인, MagicDNS 경유 OpenSSH 확인,
-Tailscale 허용 방화벽 적용과 재확인이 끝난 뒤 다음 노드로 이동한다. 그 후에만
-Tailscale inventory를 겹쳐 기존 WireGuard를 제거한다.
+임시 공인 `/32` 경로를 유지한 채 `make bootstrap-firewall`로 세 노드를 `serial: 1` 적용한다.
+각 노드에서 Tailscale 신원 확인, MagicDNS 경유 OpenSSH 확인, Tailscale 허용 방화벽 적용과
+재확인이 끝난 뒤 다음 노드로 이동한다.
 
 ```bash
 export ALIGNER_TAILSCALE_AUTH_KEY_FILE="$PWD/.runtime/tailscale/bootstrap.authkey"
-make tailscale-cutover
-make tailscale-remove-wireguard
+export ALIGNER_GABIA_LB_PRIVATE_IP="<lb-private-ip>"
+make bootstrap-firewall
 ```
 
 role은 인증된 MagicDNS Ansible OpenSSH 연결, Tailscale 허용 방화벽 증거, `Running`, hostname,
-`tag:aligner-prod`를 모두 확인한 후에만 `wg-quick@wg0`, `/etc/wireguard`, WireGuard
-패키지를 제거한다. 서버 등록이 끝나면 Tailscale 콘솔에서 bootstrap auth key를 revoke한다.
+`tag:aligner-prod`를 모두 확인한 후에만 방화벽을 적용한다. 서버 등록이 끝나면 Tailscale
+콘솔에서 bootstrap auth key를 revoke한다.
 등록이 일부 노드에서 실패해도 원격 임시 key 파일은 role의 `always` 단계에서 제거된다.
 실패한 bootstrap auth key도 즉시 revoke하고 새 key로만 재시도한다.
 
@@ -50,7 +49,8 @@ ssh ubuntu@k3s-03 true
 kubectl --server=https://k3s-01:6443 get --raw=/readyz
 ```
 
-`make site`, `make verify`, `make verify-cilium`은 private topology inventory 뒤에
+`make site`는 승인값과 K3s/R2 시크릿을 담은 Git 밖의 0600 runtime vars 파일을
+`ALIGNER_RUNTIME_VARS_FILE`로 요구한다. `make site`, `make verify`, `make verify-cilium`은 private topology inventory 뒤에
 `ansible/inventories/tailscale/hosts.yml`을 합성해 `ansible_host`만 MagicDNS 이름으로
 덮어쓴다. 방화벽 적용은 각 노드에서 Tailscale 신원과 SSH를 다시 확인한 후
 `firewall_runtime_approved=true`, `firewall_tailscale_access_proven=true`로 serial 1 실행한다.

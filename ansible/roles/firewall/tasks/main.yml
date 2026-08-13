@@ -34,7 +34,8 @@
         ((firewall_tailscale_status.stdout | from_json).Self.Tags | default([]))
       - firewall_k3s_node_private_ips | length == 3
       - firewall_k3s_node_private_ips | unique | length == 3
-      - firewall_gabia_lb_private_ip | length > 0
+      - firewall_gabia_lb_private_ip is match('^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$')
+      - firewall_gabia_lb_private_ip not in firewall_k3s_node_private_ips
     fail_msg: >-
       Firewall is intentionally not applied. Set the explicit approval and per-node
       proof only after the tagged Tailscale identity and SSH path are verified.
@@ -55,6 +56,7 @@
   changed_when: false
   delegate_to: localhost
   become: false
+  no_log: true
   when: firewall_tailscale_api_check_command | length > 0
 
 - name: Apply persistent host firewall one node at a time
@@ -64,49 +66,33 @@
         name: nftables
         state: present
 
-    - name: Render validated firewall candidate
-      ansible.builtin.template:
-        src: aligner.nft.j2
-        dest: /etc/nftables.conf.aligner-candidate
+    - name: Create dedicated nftables include directory
+      ansible.builtin.file:
+        path: /etc/nftables.d
+        state: directory
         owner: root
         group: root
-        mode: "0600"
+        mode: "0755"
 
-    - name: Check firewall candidate syntax
-      ansible.builtin.command:
-        argv:
-          - nft
-          - --check
-          - --file
-          - /etc/nftables.conf.aligner-candidate
+    - name: Mark firewall replacement as not started
+      ansible.builtin.set_fact:
+        firewall_apply_started: false
       changed_when: false
 
-    - name: Check whether nftables configuration exists before backup
+    - name: Check whether dedicated firewall include exists before backup
       ansible.builtin.stat:
-        path: /etc/nftables.conf
-      register: firewall_nftables_conf
+        path: /etc/nftables.d/aligner.nft
+      register: firewall_aligner_include
 
-    - name: Save pre-firewall configuration for rollback
+    - name: Save dedicated firewall include for rollback
       ansible.builtin.copy:
-        src: /etc/nftables.conf
-        dest: /etc/nftables.conf.aligner-pre-firewall
+        src: /etc/nftables.d/aligner.nft
+        dest: /etc/nftables.d/aligner.nft.aligner-pre-firewall
         remote_src: true
         owner: root
         group: root
         mode: "0600"
-      when:
-        - firewall_nftables_conf is defined
-        - firewall_nftables_conf.stat.exists
-
-    - name: Persist firewall configuration
-      ansible.builtin.copy:
-        src: /etc/nftables.conf.aligner-candidate
-        dest: /etc/nftables.conf
-        remote_src: true
-        owner: root
-        group: root
-        mode: "0600"
-      register: firewall_persisted
+      when: firewall_aligner_include.stat.exists
 
     - name: Check for existing dedicated firewall table  # noqa no-handler
       ansible.builtin.command:
@@ -119,7 +105,70 @@
       register: firewall_aligner_table
       changed_when: false
       failed_when: false
-      when: firewall_persisted.changed
+
+    - name: Render validated firewall candidate
+      ansible.builtin.template:
+        src: aligner.nft.j2
+        dest: /etc/nftables.d/aligner.nft.candidate
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Check firewall candidate syntax
+      ansible.builtin.command:
+        argv:
+          - nft
+          - --check
+          - --file
+          - /etc/nftables.d/aligner.nft.candidate
+      changed_when: false
+
+    - name: Persist dedicated nftables include contract
+      ansible.builtin.lineinfile:
+        path: /etc/nftables.conf
+        line: 'include "/etc/nftables.d/*.nft"'
+        create: true
+        owner: root
+        group: root
+        mode: "0644"
+      register: firewall_root_include
+
+    - name: Persist dedicated firewall include
+      ansible.builtin.copy:
+        src: /etc/nftables.d/aligner.nft.candidate
+        dest: /etc/nftables.d/aligner.nft
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+      register: firewall_persisted
+
+    - name: Mark firewall replacement as started
+      ansible.builtin.set_fact:
+        firewall_apply_started: true
+      changed_when: false
+      when: firewall_persisted.changed or firewall_root_include.changed
+
+    - name: Check complete persistent nftables configuration
+      ansible.builtin.command:
+        argv:
+          - nft
+          - --check
+          - --file
+          - /etc/nftables.conf
+      changed_when: false
+
+    - name: Decide whether dedicated firewall requires reconciliation
+      ansible.builtin.set_fact:
+        firewall_reconcile_required: >-
+          {{ firewall_persisted.changed or firewall_aligner_table.rc != 0 }}
+      changed_when: false
+
+    - name: Mark live firewall replacement as started
+      ansible.builtin.set_fact:
+        firewall_apply_started: true
+      changed_when: false
+      when: firewall_reconcile_required | bool
 
     - name: Remove existing dedicated firewall table before replacement
       ansible.builtin.command:
@@ -131,17 +180,17 @@
           - aligner_firewall
       changed_when: true
       when:
-        - firewall_persisted.changed
+        - firewall_reconcile_required | bool
         - firewall_aligner_table.rc | default(1) == 0
 
-    - name: Load firewall configuration  # noqa no-handler
+    - name: Load dedicated firewall include  # noqa no-handler
       ansible.builtin.command:
         argv:
           - nft
           - --file
-          - /etc/nftables.conf
+          - /etc/nftables.d/aligner.nft
       changed_when: true
-      when: firewall_persisted.changed
+      when: firewall_reconcile_required | bool
 
     - name: Enable nftables at reboot
       ansible.builtin.service:
@@ -165,6 +214,7 @@
       changed_when: false
       delegate_to: localhost
       become: false
+      no_log: true
       when: firewall_tailscale_api_check_command | length > 0
 
   rescue:
@@ -178,37 +228,48 @@
           - aligner_firewall
       changed_when: true
       failed_when: false
+      when: firewall_apply_started | default(false) | bool
 
-    - name: Restore pre-firewall configuration
+    - name: Restore dedicated firewall include
       ansible.builtin.copy:
-        src: /etc/nftables.conf.aligner-pre-firewall
-        dest: /etc/nftables.conf
+        src: /etc/nftables.d/aligner.nft.aligner-pre-firewall
+        dest: /etc/nftables.d/aligner.nft
         remote_src: true
         owner: root
         group: root
         mode: "0600"
       when:
-        - firewall_nftables_conf is defined
-        - firewall_nftables_conf.stat.exists
+        - firewall_aligner_include is defined
+        - firewall_aligner_include.stat.exists
 
-    - name: Remove configuration created during failed firewall apply
+    - name: Remove dedicated include created during failed firewall apply
       ansible.builtin.file:
-        path: /etc/nftables.conf
+        path: /etc/nftables.d/aligner.nft
         state: absent
       when:
-        - firewall_nftables_conf is defined
-        - not firewall_nftables_conf.stat.exists
+        - firewall_aligner_include is defined
+        - not firewall_aligner_include.stat.exists
 
-    - name: Reload pre-firewall configuration
+    - name: Reload dedicated firewall include
       ansible.builtin.command:
         argv:
           - nft
           - --file
-          - /etc/nftables.conf
+          - /etc/nftables.d/aligner.nft
       changed_when: true
       when:
-        - firewall_nftables_conf is defined
-        - firewall_nftables_conf.stat.exists
+        - firewall_apply_started | default(false) | bool
+        - firewall_aligner_include is defined
+        - firewall_aligner_include.stat.exists
+
+    - name: Remove root include added by failed firewall apply
+      ansible.builtin.lineinfile:
+        path: /etc/nftables.conf
+        line: 'include "/etc/nftables.d/*.nft"'
+        state: absent
+      when:
+        - firewall_root_include is defined
+        - firewall_root_include.changed
 
     - name: Stop after rollback
       ansible.builtin.fail:
@@ -217,5 +278,5 @@
   always:
     - name: Remove firewall candidate
       ansible.builtin.file:
-        path: /etc/nftables.conf.aligner-candidate
+        path: /etc/nftables.d/aligner.nft.candidate
         state: absent

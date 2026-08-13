@@ -23,10 +23,11 @@ Gen2 웹 콘솔 또는 provider가 보장하는 out-of-band serial console에 �
 
 1. 현재 운영자 공인 IP를 별도 네트워크에서 확인한다.
 2. 가비아 보안그룹에 `k3s-03:22/TCP source=<current-ip>/32` 규칙을 추가한다.
-3. out-of-band console에서 root-only `/etc/nftables.conf.aligner-pre-firewall`이 있으면
-   `nft --check --file /etc/nftables.conf.aligner-pre-firewall` 성공 후 해당 백업을
-   `/etc/nftables.conf`로 복원해 `nft --file /etc/nftables.conf`를 실행한다. 최초 적용처럼
-   이전 설정이 없으면 `nft list table inet aligner_firewall`로 전용 table만 확인하고
+3. out-of-band console에서 root-only `/etc/nftables.d/aligner.nft.aligner-pre-firewall`이 있으면
+   `nft --check --file /etc/nftables.d/aligner.nft.aligner-pre-firewall` 성공 후 해당 백업을
+   `/etc/nftables.d/aligner.nft`로 복원한다. 현재 `aligner_firewall` table만 제거한 뒤
+   `nft --file /etc/nftables.d/aligner.nft`를 실행한다. 최초 적용처럼 이전 설정이 없으면
+   `nft list table inet aligner_firewall`로 전용 table만 확인하고
    `nft --check destroy table inet aligner_firewall` 성공 후 같은 명령에서 `--check`만
    제거해 실행한다. 다른 nftables table이나 전체 ruleset은 flush하지 않는다.
 4. SSH key로 접속하고 관리망을 복구한다. 패스워드와 root 원격 로그인은 허용하지 않는다.

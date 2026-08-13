@@ -29,6 +29,10 @@ class FailoverResultTest(unittest.TestCase):
         result = {"issue": 31, "status": "FAIL", "started_at_utc": "2026-08-12T00:00:00Z", "write_rto_seconds": 61, "required_pods_pending": 0, "cnpg_instances_ready": 2, "manual_intervention": False, "token": "redacted"}
         self.assertIn("secret-like field is forbidden: token", MODULE.validate(result))
 
+    def test_nested_secret_like_fields_are_rejected(self):
+        result = {"issue": 31, "status": "FAIL", "started_at_utc": "2026-08-12T00:00:00Z", "write_rto_seconds": 61, "required_pods_pending": 0, "cnpg_instances_ready": 2, "manual_intervention": False, "evidence": [{"private_key": "redacted"}]}
+        self.assertIn("secret-like field is forbidden: private_key", MODULE.validate(result))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,9 +9,24 @@ import sys
 
 ALLOWED_STATUS = {"NOT_EXECUTED", "PASS", "FAIL"}
 NODE_ORDER = ["k3s-01", "k3s-02", "k3s-03"]
-FORBIDDEN_FIELD = re.compile(r"(authorization|credential|password|access[_-]?key|private[_-]?key|secret.*(?:value|data|content)|token.*(?:value|data|content))", re.I)
+FORBIDDEN_FIELD = re.compile(
+    r"(authorization|credential|password|access[_-]?(?:key|token)|private[_-]?key|"
+    r"secret.*(?:key|value|data|content)|token.*(?:value|data|content))",
+    re.I,
+)
 K3S_VERSION = re.compile(r"v\d+\.\d+\.\d+\+k3s\d+")
 CILIUM_VERSION = re.compile(r"\d+\.\d+\.\d+")
+
+
+def secret_like_keys(value):
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if isinstance(key, str) and FORBIDDEN_FIELD.search(key):
+                yield key
+            yield from secret_like_keys(nested)
+    elif isinstance(value, list):
+        for nested in value:
+            yield from secret_like_keys(nested)
 
 
 def non_negative_number(value):
@@ -97,9 +112,8 @@ def validate(result):
     if not isinstance(changes, dict) or set(changes) != {"error_rate_percent", "total_duration_seconds", "cpu_millicores_delta", "memory_bytes_delta"} or not all(non_negative_number(changes.get(field)) for field in changes):
         errors.append("changes must record non-negative error, time, CPU, and memory changes")
 
-    for key in result:
-        if FORBIDDEN_FIELD.search(key):
-            errors.append("secret-like field is forbidden: " + key)
+    for key in secret_like_keys(result):
+        errors.append("secret-like field is forbidden: " + key)
 
     if result.get("status") == "PASS" and errors:
         errors.append("PASS requires every backup, compatibility, node, rollback, and change record check")

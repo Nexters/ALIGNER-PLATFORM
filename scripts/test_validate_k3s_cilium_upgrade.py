@@ -71,6 +71,11 @@ class K3sCiliumUpgradeResultTest(unittest.TestCase):
         del result["changes"]["memory_bytes_delta"]
         self.assertTrue(MODULE.validate(result))
 
+    def test_rejects_nested_secret_like_fields(self):
+        result = passing_result()
+        result["changes"]["access_token"] = "must-not-be-recorded"
+        self.assertIn("secret-like field is forbidden: access_token", MODULE.validate(result))
+
 
 if __name__ == "__main__":
     unittest.main()

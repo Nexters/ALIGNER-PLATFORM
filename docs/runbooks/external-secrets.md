@@ -9,8 +9,10 @@
 3. Argo CD sync 후 `ExternalSecret/aligner-api-runtime` Ready와 target Secret의 **이름과 key
    목록만** 확인한다. 값 출력(`kubectl get secret -o yaml`, `describe`)은 금지한다.
 
-`gitops/infrastructure/configs/secret-stores/namespace.yaml`은 `aligner` namespace의 정본이다.
-Issue #29 애플리케이션 매니페스트는 이를 재생성하지 않고 `aligner-api-runtime`만 참조한다.
+`external-secrets` Argo CD Application이 `CreateNamespace=true`와
+`managedNamespaceMetadata`로 `aligner` namespace를 단독 생성·관리한다. 생성 시
+restricted Pod Security Admission label을 적용하므로 namespaced ESO controller와
+`aligner-api-runtime` SecretStore/ExternalSecret은 namespace가 준비된 뒤 sync된다.
 
 ## 권한 검증
 

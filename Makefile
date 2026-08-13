@@ -1,4 +1,4 @@
-.PHONY: lint collections render bootstrap-access bootstrap-inventory bootstrap-management tailscale-cutover tailscale-remove-wireguard inventory lockdown site verify verify-cilium test-verify test-failover-drill test-etcd-recovery test-k3s-cilium-upgrade test-full-rebuild test-postgresql-pitr
+.PHONY: lint collections render bootstrap-access bootstrap-inventory bootstrap-management bootstrap-firewall inventory lockdown site verify verify-cilium test-verify test-failover-drill test-etcd-recovery test-k3s-cilium-upgrade test-full-rebuild test-postgresql-pitr
 
 ANSIBLE_CONFIG := $(CURDIR)/ansible/ansible.cfg
 ANSIBLE_COLLECTIONS_PATH := $(CURDIR)/.ansible/collections
@@ -17,6 +17,7 @@ render:
 		echo "== gitops/apps/aligner-api/overlays/$$overlay =="; \
 		kubectl kustomize gitops/apps/aligner-api/overlays/$$overlay > /dev/null || exit 1; \
 	done
+	bash gitops/infrastructure/configs/secret-stores/tests/assert-ordering.sh
 	@echo "모든 overlay 렌더 성공"
 
 bootstrap-access:
@@ -27,14 +28,19 @@ bootstrap-inventory:
 	gabiactl inventory -f infra/bootstrap/desired-infrastructure.yaml --connect-via public -o .runtime/bootstrap-inventory.yaml
 
 bootstrap-management:
-	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/bootstrap-inventory.yaml ansible/playbooks/management-access.yml
-
-tailscale-cutover:
 	@test -n "$$ALIGNER_TAILSCALE_AUTH_KEY_FILE" || (echo "ALIGNER_TAILSCALE_AUTH_KEY_FILE이 필요합니다"; exit 1)
-	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/bootstrap-inventory.yaml ansible/playbooks/tailscale-cutover.yml -e management_network_tailscale_runtime_approved=true -e management_network_tailscale_auth_key_file="$$ALIGNER_TAILSCALE_AUTH_KEY_FILE" -e firewall_runtime_approved=true -e firewall_tailscale_access_proven=true
+	@test -f "$$ALIGNER_TAILSCALE_AUTH_KEY_FILE" || (echo "ALIGNER_TAILSCALE_AUTH_KEY_FILE 파일이 필요합니다"; exit 1)
+	@test ! -L "$$ALIGNER_TAILSCALE_AUTH_KEY_FILE" || (echo "auth key 파일은 symlink일 수 없습니다"; exit 1)
+	@mode=$$(stat -f '%Lp' "$$ALIGNER_TAILSCALE_AUTH_KEY_FILE" 2>/dev/null || stat -c '%a' "$$ALIGNER_TAILSCALE_AUTH_KEY_FILE"); test "$$mode" = 400 -o "$$mode" = 600 || (echo "auth key 파일 권한은 0400 또는 0600이어야 합니다"; exit 1)
+	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/bootstrap-inventory.yaml ansible/playbooks/management-access.yml -e management_network_tailscale_runtime_approved=true -e management_network_tailscale_auth_key_file="$$ALIGNER_TAILSCALE_AUTH_KEY_FILE"
 
-tailscale-remove-wireguard:
-	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/inventory.yaml -i $(TAILSCALE_INVENTORY) ansible/playbooks/management-access.yml -e management_network_tailscale_runtime_approved=true -e management_network_remove_legacy_wireguard=true -e management_network_legacy_wireguard_removal_approved=true -e management_network_tailscale_firewall_proven=true
+bootstrap-firewall:
+	@test -n "$$ALIGNER_TAILSCALE_AUTH_KEY_FILE" || (echo "ALIGNER_TAILSCALE_AUTH_KEY_FILE이 필요합니다"; exit 1)
+	@test -f "$$ALIGNER_TAILSCALE_AUTH_KEY_FILE" || (echo "ALIGNER_TAILSCALE_AUTH_KEY_FILE 파일이 필요합니다"; exit 1)
+	@test ! -L "$$ALIGNER_TAILSCALE_AUTH_KEY_FILE" || (echo "auth key 파일은 symlink일 수 없습니다"; exit 1)
+	@mode=$$(stat -f '%Lp' "$$ALIGNER_TAILSCALE_AUTH_KEY_FILE" 2>/dev/null || stat -c '%a' "$$ALIGNER_TAILSCALE_AUTH_KEY_FILE"); test "$$mode" = 400 -o "$$mode" = 600 || (echo "auth key 파일 권한은 0400 또는 0600이어야 합니다"; exit 1)
+	@test -n "$$ALIGNER_GABIA_LB_PRIVATE_IP" || (echo "ALIGNER_GABIA_LB_PRIVATE_IP가 필요합니다"; exit 1)
+	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/bootstrap-inventory.yaml ansible/playbooks/bootstrap-firewall.yml -e management_network_tailscale_runtime_approved=true -e management_network_tailscale_auth_key_file="$$ALIGNER_TAILSCALE_AUTH_KEY_FILE" -e firewall_runtime_approved=true -e firewall_tailscale_access_proven=true -e firewall_gabia_lb_private_ip="$$ALIGNER_GABIA_LB_PRIVATE_IP"
 
 inventory:
 	gabiactl inventory -f infra/bootstrap/desired-infrastructure.yaml --connect-via private -o .runtime/inventory.yaml
@@ -43,7 +49,11 @@ lockdown:
 	gabiactl access close -f infra/bootstrap/desired-infrastructure.yaml --targets k3s-01,k3s-02,k3s-03
 
 site:
-	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/inventory.yaml -i $(TAILSCALE_INVENTORY) ansible/playbooks/site.yml
+	@test -n "$$ALIGNER_RUNTIME_VARS_FILE" || (echo "ALIGNER_RUNTIME_VARS_FILE이 필요합니다"; exit 1)
+	@test -f "$$ALIGNER_RUNTIME_VARS_FILE" || (echo "ALIGNER_RUNTIME_VARS_FILE 파일이 필요합니다"; exit 1)
+	@test ! -L "$$ALIGNER_RUNTIME_VARS_FILE" || (echo "runtime vars 파일은 symlink일 수 없습니다"; exit 1)
+	@mode=$$(stat -f '%Lp' "$$ALIGNER_RUNTIME_VARS_FILE" 2>/dev/null || stat -c '%a' "$$ALIGNER_RUNTIME_VARS_FILE"); test "$$mode" = 400 -o "$$mode" = 600 || (echo "runtime vars 파일 권한은 0400 또는 0600이어야 합니다"; exit 1)
+	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/inventory.yaml -i $(TAILSCALE_INVENTORY) ansible/playbooks/site.yml -e "@$$ALIGNER_RUNTIME_VARS_FILE"
 
 verify:
 	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/inventory.yaml -i $(TAILSCALE_INVENTORY) ansible/playbooks/verify.yml

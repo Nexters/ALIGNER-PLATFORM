@@ -33,8 +33,6 @@ management_network_tailscale_runtime_approved: false
 management_network_tailscale_version: "1.102.2"
 management_network_tailscale_server_tag: "tag:aligner-prod"
 management_network_tailscale_auth_key_file: ""
-management_network_remove_legacy_wireguard: false
-management_network_legacy_wireguard_removal_approved: false
 
 # Host firewall. Defaults fail before package/rule changes. Set the approval and
 # proof for each host only after the commands below succeed through Tailscale.

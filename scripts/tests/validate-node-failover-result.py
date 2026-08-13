@@ -11,6 +11,17 @@ ALLOWED_STATUS = {"NOT_EXECUTED", "PASS", "FAIL"}
 SECRET_MARKERS = re.compile(r"(authorization|credential|password|secret|token|access[_-]?key|private[_-]?key)", re.IGNORECASE)
 
 
+def secret_like_keys(value):
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if isinstance(key, str) and SECRET_MARKERS.search(key):
+                yield key
+            yield from secret_like_keys(nested)
+    elif isinstance(value, list):
+        for nested in value:
+            yield from secret_like_keys(nested)
+
+
 def validate(result):
     errors = []
     if not isinstance(result, dict):
@@ -39,9 +50,8 @@ def validate(result):
         errors.append("manual_intervention must be boolean")
     if result.get("status") == "PASS" and result.get("manual_intervention") is not False:
         errors.append("PASS requires manual_intervention=false")
-    for key in result:
-        if SECRET_MARKERS.search(key):
-            errors.append("secret-like field is forbidden: " + key)
+    for key in secret_like_keys(result):
+        errors.append("secret-like field is forbidden: " + key)
     return errors
 
 

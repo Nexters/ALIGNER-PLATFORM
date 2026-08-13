@@ -24,33 +24,12 @@ func readStateForServers(environment string, names []string) (State, error) {
 	if err != nil {
 		return State{}, err
 	}
-	state, migrated, err := decodeState(b)
+	state, err := decodeState(b)
 	if err != nil {
 		return State{}, fmt.Errorf("read state: %w", err)
 	}
 	if err := validateState(state, environment, names); err != nil {
 		return State{}, err
-	}
-	if migrated {
-		if err := withStateLock(func(dirFD int) error {
-			b, err := readStateFileAt(dirFD)
-			if err != nil {
-				return err
-			}
-			state, migrated, err = decodeState(b)
-			if err != nil {
-				return fmt.Errorf("read state: %w", err)
-			}
-			if err := validateState(state, environment, names); err != nil {
-				return err
-			}
-			if migrated {
-				return writeStateFileAt(dirFD, state)
-			}
-			return nil
-		}); err != nil {
-			return State{}, err
-		}
 	}
 	return state, nil
 }
@@ -224,87 +203,53 @@ func writePrivateFile(path string, data []byte) error {
 	return unix.Fsync(dirFD)
 }
 
-func decodeState(b []byte) (State, bool, error) {
+func decodeState(b []byte) (State, error) {
 	var raw map[string]json.RawMessage
 	if err := decodeJSON(b, &raw); err != nil {
-		return State{}, false, err
+		return State{}, err
 	}
 	for key := range raw {
 		if key != "environment" && key != "resources" && key != "servers" {
-			return State{}, false, fmt.Errorf("state has unknown field %q", key)
+			return State{}, fmt.Errorf("state has unknown field %q", key)
 		}
 	}
-	if raw["environment"] == nil || raw["servers"] == nil && raw["resources"] == nil {
-		return State{}, false, errors.New("state must contain environment and servers or resources")
+	if raw["environment"] == nil || raw["servers"] == nil {
+		return State{}, errors.New("state must contain environment and top-level servers")
 	}
 	var state State
 	if err := decodeJSON(raw["environment"], &state.Environment); err != nil {
-		return State{}, false, fmt.Errorf("state environment: %w", err)
+		return State{}, fmt.Errorf("state environment: %w", err)
 	}
 	state.Resources = make(map[string]ResourceState)
-	var topLevelServers map[string]ServerState
-	if servers := raw["servers"]; servers != nil {
-		if err := decodeJSON(servers, &topLevelServers); err != nil {
-			return State{}, false, fmt.Errorf("state servers: %w", err)
-		}
+	if err := decodeJSON(raw["servers"], &state.Servers); err != nil {
+		return State{}, fmt.Errorf("state servers: %w", err)
 	}
-	var migrated bool
-	var legacyServers map[string]ServerState
 	if resources := raw["resources"]; resources != nil {
 		var entries map[string]json.RawMessage
 		if err := decodeJSON(resources, &entries); err != nil {
-			return State{}, false, fmt.Errorf("state resources: %w", err)
+			return State{}, fmt.Errorf("state resources: %w", err)
 		}
 		for name, value := range entries {
-			if name == "servers" {
-				if err := decodeJSON(value, &legacyServers); err != nil {
-					return State{}, false, errors.New("state resources.servers must be a name-keyed server map")
-				}
-				migrated = true
-				continue
+			if name == "servers" || name == "routing_table" || name == "security_group" {
+				return State{}, fmt.Errorf("state resource %q is not supported by the current schema", name)
 			}
 			var resource ResourceState
 			if err := decodeJSON(value, &resource); err != nil {
-				return State{}, false, fmt.Errorf("state resource %q: %w", name, err)
-			}
-			originalName := name
-			if name == "routing_table" {
-				name = "router"
-				migrated = true
-			} else if name == "security_group" {
-				name = "security-group"
-				migrated = true
-			}
-			if existing, ok := state.Resources[name]; ok && existing != resource {
-				return State{}, false, fmt.Errorf("state resources %q and %q conflict", originalName, name)
+				return State{}, fmt.Errorf("state resource %q: %w", name, err)
 			}
 			state.Resources[name] = resource
 		}
 	}
-	if legacyServers != nil {
-		if len(topLevelServers) > 0 && !sameServers(topLevelServers, legacyServers) {
-			return State{}, false, errors.New("state servers and resources.servers conflict")
-		}
-		state.Servers = legacyServers
-	} else {
-		state.Servers = topLevelServers
-	}
 	for name, server := range state.Servers {
-		state.Resources["server/"+name] = ResourceState(server)
-	}
-	return state, migrated, nil
-}
-
-func sameServers(left, right map[string]ServerState) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for name, server := range left {
-		if right[name] != server {
-			return false
+		identity := "server/" + name
+		if resource, ok := state.Resources[identity]; ok && resource != ResourceState(server) {
+			return State{}, fmt.Errorf("state %s does not match top-level servers", identity)
+		}
+		if _, ok := state.Resources[identity]; !ok {
+			state.Resources[identity] = ResourceState(server)
 		}
 	}
-	return true
+	return state, nil
 }
 
 func decodeJSON(b []byte, target any) error {
