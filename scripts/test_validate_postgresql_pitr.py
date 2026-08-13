@@ -14,6 +14,9 @@ def passing_result():
 
 
 class PostgreSqlPitrResultTest(unittest.TestCase):
+    def test_complete_pass_is_valid(self):
+        self.assertEqual([], MODULE.validate(passing_result()))
+
     def test_not_executed_is_initial_evidence(self):
         self.assertEqual([], MODULE.validate({"issue": 32, "status": "NOT_EXECUTED"}))
 
