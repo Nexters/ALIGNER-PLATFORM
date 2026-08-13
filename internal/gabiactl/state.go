@@ -52,8 +52,8 @@ func readStateForServers(environment string, names []string) (State, error) {
 }
 
 // writeState records a validated state using an atomic same-directory rename.
-func writeState(state State, names []string) error {
-	if err := validateState(state, state.Environment, names); err != nil {
+func writeState(state State, environment string, names []string) error {
+	if err := validateState(state, environment, names); err != nil {
 		return err
 	}
 	return withStateLock(func() error { return writeStateFile(state) })
@@ -70,14 +70,14 @@ func withStateLock(fn func() error) error {
 	if err != nil {
 		return err
 	}
-	defer lock.Close()
+	defer func() { _ = lock.Close() }()
 	if err := lock.Chmod(stateFileMode); err != nil {
 		return err
 	}
 	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
 		return err
 	}
-	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	defer func() { _ = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }()
 	return fn()
 }
 
@@ -93,7 +93,7 @@ func readStateFile() ([]byte, error) {
 		return nil, err
 	}
 	file := os.NewFile(uintptr(fd), stateFile)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	info, err := file.Stat()
 	if err != nil {
 		return nil, err
@@ -137,7 +137,7 @@ func writeStateFile(state State) error {
 		return err
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
+	defer func() { _ = os.Remove(tmpName) }()
 	if err := tmp.Chmod(stateFileMode); err != nil {
 		tmp.Close()
 		return err
@@ -207,10 +207,16 @@ func decodeState(b []byte) (State, bool, error) {
 			if err := decodeJSON(value, &resource); err != nil {
 				return State{}, false, fmt.Errorf("state resource %q: %w", name, err)
 			}
+			originalName := name
 			if name == "routing_table" {
 				name = "router"
+				migrated = true
 			} else if name == "security_group" {
 				name = "security-group"
+				migrated = true
+			}
+			if existing, ok := state.Resources[name]; ok && existing != resource {
+				return State{}, false, fmt.Errorf("state resources %q and %q conflict", originalName, name)
 			}
 			state.Resources[name] = resource
 		}
@@ -224,7 +230,7 @@ func decodeState(b []byte) (State, bool, error) {
 		state.Servers = topLevelServers
 	}
 	for name, server := range state.Servers {
-		state.Resources["server/"+name] = ResourceState{ID: server.ID, PublicIP: server.PublicIP, PrivateIP: server.PrivateIP}
+		state.Resources["server/"+name] = ResourceState(server)
 	}
 	return state, migrated, nil
 }

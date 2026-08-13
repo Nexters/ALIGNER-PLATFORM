@@ -53,13 +53,32 @@ func TestDecodeStateAcceptsMatchingTopLevelAndLegacyServers(t *testing.T) {
 	}
 }
 
+func TestDecodeStateRejectsConflictingResourceAliases(t *testing.T) {
+	for _, resources := range []string{
+		`"routing_table":{"id":"router-old"},"router":{"id":"router-new"}`,
+		`"security_group":{"id":"sg-old"},"security-group":{"id":"sg-new"}`,
+	} {
+		_, _, err := decodeState([]byte(`{"environment":"sandbox","servers":{},"resources":{` + resources + `}}`))
+		if err == nil || !strings.Contains(err.Error(), "conflict") {
+			t.Fatalf("alias conflict error = %v", err)
+		}
+	}
+}
+
+func TestDecodeStateAcceptsMatchingResourceAliases(t *testing.T) {
+	state, migrated, err := decodeState([]byte(`{"environment":"sandbox","servers":{},"resources":{"routing_table":{"id":"router-1"},"router":{"id":"router-1"}}}`))
+	if err != nil || !migrated || state.Resources["router"].ID != "router-1" {
+		t.Fatalf("matching aliases state = %#v, migrated = %t, err = %v", state, migrated, err)
+	}
+}
+
 func TestReadStateRejectsUnsafeFileAndSchema(t *testing.T) {
 	chdir(t)
 	if err := os.Mkdir(".runtime", 0750); err != nil {
 		t.Fatal(err)
 	}
 	valid := `{"environment":"sandbox","servers":{"k3s-01":{"id":"server-1"}}}`
-	if err := os.WriteFile(stateFile, []byte(valid), 0644); err != nil {
+	if err := os.WriteFile(stateFile, []byte(valid), 0644); err != nil { // #nosec G306 -- intentionally unsafe fixture
 		t.Fatal(err)
 	}
 	if _, err := readStateForServers("sandbox", []string{"k3s-01"}); err == nil || !strings.Contains(err.Error(), "mode 0600") {
@@ -98,7 +117,7 @@ func TestReadStateRejectsUnsafeFileAndSchema(t *testing.T) {
 func TestWriteStateUsesPrivateAtomicFile(t *testing.T) {
 	chdir(t)
 	state := State{Environment: "sandbox", Servers: map[string]ServerState{"k3s-01": {ID: "server-1"}}}
-	if err := writeState(state, []string{"k3s-01"}); err != nil {
+	if err := writeState(state, "sandbox", []string{"k3s-01"}); err != nil {
 		t.Fatal(err)
 	}
 	info, err := os.Lstat(filepath.Join(".runtime", "gabiactl-state.json"))
@@ -107,5 +126,26 @@ func TestWriteStateUsesPrivateAtomicFile(t *testing.T) {
 	}
 	if !info.Mode().IsRegular() || info.Mode().Perm() != stateFileMode {
 		t.Fatalf("state mode = %o, regular = %t", info.Mode().Perm(), info.Mode().IsRegular())
+	}
+}
+
+func TestReadStateRejectsWritableParent(t *testing.T) {
+	chdir(t)
+	if err := os.Mkdir(".runtime", 0777); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(".runtime", 0777); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readStateForServers("sandbox", []string{"k3s-01"}); err == nil || !strings.Contains(err.Error(), "group or world writable") {
+		t.Fatalf("writable parent error = %v", err)
+	}
+}
+
+func TestWriteStateRejectsWrongEnvironment(t *testing.T) {
+	chdir(t)
+	state := State{Environment: "production", Servers: map[string]ServerState{"k3s-01": {ID: "server-1"}}}
+	if err := writeState(state, "sandbox", []string{"k3s-01"}); err == nil || !strings.Contains(err.Error(), "environment") {
+		t.Fatalf("environment mismatch error = %v", err)
 	}
 }
