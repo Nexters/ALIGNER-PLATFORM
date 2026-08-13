@@ -1,53 +1,61 @@
 ---
 - name: Derive firewall interfaces from gathered facts
   ansible.builtin.set_fact:
-    firewall_is_management_gateway: "{{ inventory_hostname in groups['management_gateways'] }}"
     firewall_private_interfaces: >-
       {{ ansible_facts | dict2items | selectattr('value.ipv4', 'defined')
       | selectattr('value.ipv4.address', 'equalto', private_ip) | map(attribute='key') | list }}
     firewall_public_interfaces: >-
       {{ ansible_facts | dict2items | selectattr('value.ipv4', 'defined')
       | selectattr('value.ipv4.address', 'equalto', public_ip) | map(attribute='key') | list }}
+    firewall_k3s_node_private_ips: >-
+      {{ groups['k3s_servers'] | map('extract', hostvars, 'private_ip') | list | sort }}
   changed_when: false
 
-- name: Stop before firewall mutation without per-node WireGuard proof
+- name: Read Tailscale identity before firewall mutation
+  ansible.builtin.command:
+    argv: [tailscale, status, --json]
+  register: firewall_tailscale_status
+  changed_when: false
+
+- name: Stop before firewall mutation without per-node Tailscale proof
   ansible.builtin.assert:
     that:
       - firewall_runtime_approved | bool
-      - firewall_wireguard_access_proven | bool
+      - firewall_tailscale_access_proven | bool
       - private_ip in ansible_all_ipv4_addresses
       - public_ip in ansible_all_ipv4_addresses
       - firewall_private_interfaces | length == 1
       - firewall_public_interfaces | length == 1
+      - firewall_tailscale_interface in ansible_interfaces
+      - (firewall_tailscale_status.stdout | from_json).BackendState == 'Running'
+      - (firewall_tailscale_status.stdout | from_json).Self.HostName == inventory_hostname
       - >-
-        (firewall_is_management_gateway | bool and
-        wireguard_interface in ansible_interfaces and
-        ansible_facts[wireguard_interface].ipv4.address == (wireguard_address.split('/') | first) and
-        firewall_wireguard_cidrs | length > 0) or
-        (not firewall_is_management_gateway | bool and
-        firewall_management_gateway_private_ips | sort ==
-        (groups['management_gateways'] | map('extract', hostvars, 'private_ip') | list | sort))
+        firewall_tailscale_server_tag in
+        ((firewall_tailscale_status.stdout | from_json).Self.Tags | default([]))
+      - firewall_k3s_node_private_ips | length == 3
+      - firewall_k3s_node_private_ips | unique | length == 3
       - firewall_gabia_lb_private_ip | length > 0
-      - firewall_wireguard_ssh_check_command | length > 0
     fail_msg: >-
       Firewall is intentionally not applied. Set the explicit approval and per-node
-      Gateway nodes require wg0 facts and WireGuard CIDRs. Non-gateway nodes require
-      the exact management gateway private IP list for routed SSH before mutation.
+      proof only after the tagged Tailscale identity and SSH path are verified.
 
-- name: Check new WireGuard SSH path before firewall mutation
-  ansible.builtin.command:
-    argv: "{{ firewall_wireguard_ssh_check_command }}"
-  changed_when: false
+- name: Check new Tailscale OpenSSH path before firewall mutation
+  ansible.builtin.wait_for:
+    host: "{{ inventory_hostname }}"
+    port: 22
+    state: started
+    connect_timeout: 5
+    timeout: 10
   delegate_to: localhost
   become: false
 
-- name: Check optional new WireGuard API path before firewall mutation
+- name: Check optional new Tailscale API path before firewall mutation
   ansible.builtin.command:
-    argv: "{{ firewall_wireguard_api_check_command }}"
+    argv: "{{ firewall_tailscale_api_check_command }}"
   changed_when: false
   delegate_to: localhost
   become: false
-  when: firewall_wireguard_api_check_command | length > 0
+  when: firewall_tailscale_api_check_command | length > 0
 
 - name: Apply persistent host firewall one node at a time
   block:
@@ -136,20 +144,23 @@
         enabled: true
         state: started
 
-    - name: Check new WireGuard SSH path after firewall change
-      ansible.builtin.command:
-        argv: "{{ firewall_wireguard_ssh_check_command }}"
-      changed_when: false
+    - name: Check new Tailscale OpenSSH path after firewall change
+      ansible.builtin.wait_for:
+        host: "{{ inventory_hostname }}"
+        port: 22
+        state: started
+        connect_timeout: 5
+        timeout: 10
       delegate_to: localhost
       become: false
 
-    - name: Check optional new WireGuard API path after firewall change
+    - name: Check optional new Tailscale API path after firewall change
       ansible.builtin.command:
-        argv: "{{ firewall_wireguard_api_check_command }}"
+        argv: "{{ firewall_tailscale_api_check_command }}"
       changed_when: false
       delegate_to: localhost
       become: false
-      when: firewall_wireguard_api_check_command | length > 0
+      when: firewall_tailscale_api_check_command | length > 0
 
   rescue:
     - name: Remove failed firewall table
@@ -203,12 +214,3 @@
       ansible.builtin.file:
         path: /etc/nftables.conf.aligner-candidate
         state: absent
-
-    - name: Remove rollback copy after successful validation
-      ansible.builtin.file:
-        path: /etc/nftables.conf.aligner-pre-firewall
-        state: absent
-      when:
-        - ansible_failed_result is not defined
-        - firewall_nftables_conf is defined
-        - firewall_nftables_conf.stat.exists

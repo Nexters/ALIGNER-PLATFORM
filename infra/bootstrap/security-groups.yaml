@@ -5,8 +5,8 @@ rules:
   inbound_external:
     - { port: 443, protocol: TCP, source: "lb_private_ip", description: "HTTPS via LB" }
     - { port: 80, protocol: TCP, source: "lb_private_ip", description: "HTTP via LB (ACME)" }
-    - { port: 51820, protocol: UDP, source: "0.0.0.0/0", targets: ["k3s-01", "k3s-02"], description: "WireGuard gateway" }
-    # 22, 6443 은 공인망에서 차단하고 WireGuard 관리망으로만 접근한다.
+    # 22, 6443 은 공인망에서 차단하고 Tailscale 관리망으로만 접근한다.
+    # Tailscale은 상태 유지 outbound 연결을 사용하므로 전용 public inbound를 추가하지 않는다.
 
   inbound_private:
     - { port: [2379, 2380], protocol: TCP, source: "node_private_cidr", description: "etcd" }

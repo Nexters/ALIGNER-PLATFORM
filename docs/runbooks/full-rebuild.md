@@ -7,7 +7,7 @@
 시작 전 `environment.name`은 `rebuild-`로 시작하는 격리 이름, `classification`은 `isolated-rebuild`로 정한다. 비용 한도(KRW), 시작·종료 UTC, 삭제 책임자를 승인 기록에 고정한다. production, 이름이 확인되지 않은 환경, 개인 PC 상태는 대상이 아니다.
 
 1. **L1 — gabiactl:** 목표 정의 검증, 기존 상태 관측, 격리 inventory를 증적으로 남긴다. 현재 gabiactl write API 계약은 gate이므로 승인된 write-capability 검증 전에는 다음 단계로 진행하지 않는다.
-2. **WireGuard 후 L2:** 관리망 WireGuard 연결 확인 뒤에만 Ansible로 storage, firewall, K3s, Cilium을 구성한다. L2 완료 증적 없이는 L3를 시작하지 않는다.
+2. **Tailscale 후 L2:** 세 노드의 MagicDNS 경유 OpenSSH 확인 뒤에만 Ansible로 storage, firewall, K3s, Cilium을 구성한다. L2 완료 증적 없이는 L3를 시작하지 않는다.
 3. **L3 — Argo CD root:** root application이 platform과 앱을 reconcile한 뒤에만 데이터 복구를 승인한다.
 4. **R2 복원:** etcd와 PostgreSQL(base backup/WAL)을 각각 R2에서 복원하고, 원본 R2 SHA-256과 복원 결과 SHA-256이 일치함을 기록한다.
 5. **외부 경로:** LB, DNS, TLS, 로그인, 핵심 write를 모두 확인한다. DNS 변경은 이 runbook의 실행 범위 밖이며, 별도 승인된 change에서만 수행한다.
