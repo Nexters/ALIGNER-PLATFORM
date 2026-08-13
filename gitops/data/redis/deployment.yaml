@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aligner-redis
+  namespace: aligner-data
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: aligner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/part-of: aligner
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.4.2-alpine
+          args:
+            - redis-server
+            - --save
+            - ""
+            - --appendonly
+            - "no"
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: [redis-cli, ping]
+            initialDelaySeconds: 2
+          livenessProbe:
+            exec:
+              command: [redis-cli, ping]
+            initialDelaySeconds: 5
+          volumeMounts:
+            - name: cache
+              mountPath: /data
+      volumes:
+        - name: cache
+          emptyDir: {}
