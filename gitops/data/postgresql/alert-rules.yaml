@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aligner-db-alert-rules
+  namespace: aligner-data
+  labels:
+    app.kubernetes.io/component: alert-rules
+    app.kubernetes.io/part-of: aligner
+data:
+  README: >-
+    Runtime-Gated alert-rule hook. CNPG metric names and units are not verified
+    in this repository; do not install expressions until the endpoint and exact
+    metric families are recorded. This repository does not install an evaluator.
+  rules.yaml.disabled: |
+    groups:
+      - name: aligner-cnpg
+        rules:
+          - alert: AlignerPostgresArchiveFailed
+            gate: CNPG WAL archive failure metric family and reset semantics
+          - alert: AlignerPostgresReplicationLag
+            gate: CNPG replication lag metric family and unit
+          - alert: AlignerPostgresBackupStale
+            gate: CNPG backup completion metric family and retention window
+          - alert: AlignerPostgresVolumeLow
+            gate: kubelet volume metric endpoint and PVC label contract

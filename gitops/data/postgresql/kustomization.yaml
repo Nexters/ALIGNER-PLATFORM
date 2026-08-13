@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Runtime-gated: this subtree is intentionally excluded from gitops/data until
+# the R2 endpoint and out-of-band Secrets are supplied and reviewed.
+resources:
+  - storage-class.yaml
+  - object-store.yaml
+  - cluster.yaml
+  - scheduled-backup.yaml
+  - alert-rules.yaml
