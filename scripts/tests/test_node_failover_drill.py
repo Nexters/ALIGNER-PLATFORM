@@ -19,6 +19,9 @@ class FailoverResultTest(unittest.TestCase):
     def test_pass_requires_rto_and_redundancy(self):
         valid = {"issue": 31, "status": "PASS", "started_at_utc": "2026-08-12T00:00:00Z", "write_rto_seconds": 60, "required_pods_pending": 0, "cnpg_instances_ready": 2, "manual_intervention": False}
         self.assertEqual([], MODULE.validate(valid))
+        valid["manual_intervention"] = True
+        self.assertIn("PASS requires manual_intervention=false", MODULE.validate(valid))
+        valid["manual_intervention"] = False
         valid["write_rto_seconds"] = 60.001
         self.assertIn("PASS requires write_rto_seconds <= 60", MODULE.validate(valid))
 

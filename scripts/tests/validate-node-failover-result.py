@@ -37,6 +37,8 @@ def validate(result):
         errors.append("cnpg_instances_ready must be 2")
     if not isinstance(result.get("manual_intervention"), bool):
         errors.append("manual_intervention must be boolean")
+    if result.get("status") == "PASS" and result.get("manual_intervention") is not False:
+        errors.append("PASS requires manual_intervention=false")
     for key in result:
         if SECRET_MARKERS.search(key):
             errors.append("secret-like field is forbidden: " + key)
