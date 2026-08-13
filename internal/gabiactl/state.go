@@ -2,6 +2,8 @@ package gabiactl
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 const stateFileMode = 0600
@@ -28,8 +32,8 @@ func readStateForServers(environment string, names []string) (State, error) {
 		return State{}, err
 	}
 	if migrated {
-		if err := withStateLock(func() error {
-			b, err := readStateFile()
+		if err := withStateLock(func(dirFD int) error {
+			b, err := readStateFileAt(dirFD)
 			if err != nil {
 				return err
 			}
@@ -41,7 +45,7 @@ func readStateForServers(environment string, names []string) (State, error) {
 				return err
 			}
 			if migrated {
-				return writeStateFile(state)
+				return writeStateFileAt(dirFD, state)
 			}
 			return nil
 		}); err != nil {
@@ -56,20 +60,23 @@ func writeState(state State, environment string, names []string) error {
 	if err := validateState(state, environment, names); err != nil {
 		return err
 	}
-	return withStateLock(func() error { return writeStateFile(state) })
+	return withStateLock(func(dirFD int) error { return writeStateFileAt(dirFD, state) })
 }
 
-func withStateLock(fn func() error) error {
+func withStateLock(fn func(int) error) error {
 	if err := os.MkdirAll(filepath.Dir(stateFile), 0750); err != nil {
 		return err
 	}
-	if err := validateStateParent(); err != nil {
-		return err
-	}
-	lock, err := os.OpenFile(stateFile+".lock", os.O_CREATE|os.O_RDWR, stateFileMode)
+	dirFD, err := openPrivateDirectory(filepath.Dir(stateFile))
 	if err != nil {
 		return err
 	}
+	defer unix.Close(dirFD)
+	lockFD, err := unix.Openat(dirFD, filepath.Base(stateFile)+".lock", unix.O_CREAT|unix.O_RDWR|unix.O_NOFOLLOW, stateFileMode)
+	if err != nil {
+		return err
+	}
+	lock := os.NewFile(uintptr(lockFD), stateFile+".lock")
 	defer func() { _ = lock.Close() }()
 	if err := lock.Chmod(stateFileMode); err != nil {
 		return err
@@ -78,14 +85,20 @@ func withStateLock(fn func() error) error {
 		return err
 	}
 	defer func() { _ = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }()
-	return fn()
+	return fn(dirFD)
 }
 
 func readStateFile() ([]byte, error) {
-	if err := validateStateParent(); err != nil {
+	dirFD, err := openPrivateDirectory(filepath.Dir(stateFile))
+	if err != nil {
 		return nil, err
 	}
-	fd, err := syscall.Open(stateFile, syscall.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	defer unix.Close(dirFD)
+	return readStateFileAt(dirFD)
+}
+
+func readStateFileAt(dirFD int) ([]byte, error) {
+	fd, err := unix.Openat(dirFD, filepath.Base(stateFile), unix.O_RDONLY|unix.O_NOFOLLOW, 0)
 	if err != nil {
 		if errors.Is(err, syscall.ELOOP) {
 			return nil, errors.New("state file must be a non-symlink regular file with mode 0600")
@@ -108,36 +121,39 @@ func readStateFile() ([]byte, error) {
 	return io.ReadAll(file)
 }
 
-func validateStateParent() error {
-	info, err := os.Lstat(filepath.Dir(stateFile))
+func openPrivateDirectory(path string) (int, error) {
+	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW, 0)
 	if err != nil {
-		return err
+		return -1, err
 	}
-	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return errors.New("state directory must be a non-symlink directory")
+	var stat unix.Stat_t
+	if err := unix.Fstat(fd, &stat); err != nil {
+		unix.Close(fd)
+		return -1, err
 	}
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok || int(stat.Uid) != os.Geteuid() {
-		return errors.New("state directory must be owned by the current user")
+	if stat.Mode&unix.S_IFMT != unix.S_IFDIR || int(stat.Uid) != os.Geteuid() || stat.Mode&0022 != 0 {
+		unix.Close(fd)
+		return -1, errors.New("state directory must be an owner-controlled non-symlink directory")
 	}
-	if info.Mode().Perm()&0022 != 0 {
-		return errors.New("state directory must not be group or world writable")
-	}
-	return nil
+	return fd, nil
 }
 
-func writeStateFile(state State) error {
+func writeStateFileAt(dirFD int, state State) error {
 	b, err := json.Marshal(state)
 	if err != nil {
 		return err
 	}
-	dir := filepath.Dir(stateFile)
-	tmp, err := os.CreateTemp(dir, ".gabiactl-state-*")
+	var nonce [16]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return err
+	}
+	tmpBase := ".gabiactl-state-" + hex.EncodeToString(nonce[:])
+	tmpFD, err := unix.Openat(dirFD, tmpBase, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_NOFOLLOW, stateFileMode)
 	if err != nil {
 		return err
 	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }()
+	tmp := os.NewFile(uintptr(tmpFD), tmpBase)
+	defer func() { _ = unix.Unlinkat(dirFD, tmpBase, 0) }()
 	if err := tmp.Chmod(stateFileMode); err != nil {
 		tmp.Close()
 		return err
@@ -153,15 +169,59 @@ func writeStateFile(state State) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(tmpName, stateFile); err != nil {
+	if err := unix.Renameat(dirFD, tmpBase, dirFD, filepath.Base(stateFile)); err != nil {
 		return err
 	}
-	d, err := os.Open(dir)
+	return unix.Fsync(dirFD)
+}
+
+func writePrivateFile(path string, data []byte) error {
+	dir, base := filepath.Dir(path), filepath.Base(path)
+	if base == "." || base == string(filepath.Separator) {
+		return errors.New("output must name a file")
+	}
+	if err := os.MkdirAll(dir, 0750); err != nil {
+		return err
+	}
+	dirFD, err := openPrivateDirectory(dir)
 	if err != nil {
 		return err
 	}
-	defer d.Close()
-	return d.Sync()
+	defer unix.Close(dirFD)
+	var existing unix.Stat_t
+	if err := unix.Fstatat(dirFD, base, &existing, unix.AT_SYMLINK_NOFOLLOW); err == nil {
+		if existing.Mode&unix.S_IFMT != unix.S_IFREG || int(existing.Uid) != os.Geteuid() || existing.Mode&0777 != stateFileMode {
+			return errors.New("output must be an owner-controlled regular file with mode 0600")
+		}
+	} else if !errors.Is(err, unix.ENOENT) {
+		return err
+	}
+	var nonce [16]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return err
+	}
+	tmpBase := ".gabiactl-output-" + hex.EncodeToString(nonce[:])
+	tmpFD, err := unix.Openat(dirFD, tmpBase, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_NOFOLLOW, stateFileMode)
+	if err != nil {
+		return err
+	}
+	tmp := os.NewFile(uintptr(tmpFD), tmpBase)
+	defer func() { _ = unix.Unlinkat(dirFD, tmpBase, 0) }()
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := unix.Renameat(dirFD, tmpBase, dirFD, base); err != nil {
+		return err
+	}
+	return unix.Fsync(dirFD)
 }
 
 func decodeState(b []byte) (State, bool, error) {

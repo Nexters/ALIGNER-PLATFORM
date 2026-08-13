@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/netip"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -339,9 +338,6 @@ func inventory(args []string, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("inventory requires sandbox-verified state: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(*output), 0750); err != nil {
-		return err
-	}
 	hosts := make(map[string]map[string]string, len(state.Servers))
 	for name, server := range state.Servers {
 		address := server.PrivateIP
@@ -361,7 +357,7 @@ func inventory(args []string, out io.Writer) error {
 	if err := encoder.Close(); err != nil {
 		return err
 	}
-	if err := os.WriteFile(*output, inventory.Bytes(), 0600); err != nil {
+	if err := writePrivateFile(*output, inventory.Bytes()); err != nil {
 		return err
 	}
 	_, err = fmt.Fprintln(out, *output)

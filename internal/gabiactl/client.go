@@ -84,7 +84,11 @@ func NewClient(credentials Credentials, identityEndpoint, cloudEndpoint string, 
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 30 * time.Second}
 	}
-	return &Client{identity: identity, cloud: cloud, httpClient: httpClient, credentials: credentials}, nil
+	safeHTTPClient := *httpClient
+	safeHTTPClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	return &Client{identity: identity, cloud: cloud, httpClient: &safeHTTPClient, credentials: credentials}, nil
 }
 
 func safeEndpoint(endpoint *url.URL, productionHost string) bool {

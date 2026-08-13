@@ -110,6 +110,28 @@ func TestInventoryUsesStateWithoutCredentials(t *testing.T) {
 	}
 }
 
+func TestInventoryRejectsSymlinkOutput(t *testing.T) {
+	chdir(t)
+	d := writeDesired(t, validYAML)
+	if err := os.MkdirAll(".runtime", 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(stateFile, []byte(`{"environment":"sandbox","servers":{"k3s-01":{"id":"server-1","private_ip":"10.20.0.10"},"k3s-02":{"id":"server-2","private_ip":"10.20.0.11"}}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(t.TempDir(), "target.yaml")
+	if err := os.WriteFile(target, []byte("do not replace"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	output := filepath.Join(t.TempDir(), "inventory.yaml")
+	if err := os.Symlink(target, output); err != nil {
+		t.Fatal(err)
+	}
+	if err := Run([]string{"inventory", "-f", d, "--connect-via", "private", "-o", output}, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "owner-controlled regular file") {
+		t.Fatalf("symlink output error = %v", err)
+	}
+}
+
 func TestRedact(t *testing.T) {
 	got := Redact("Authorization: Basic secret x-cloud-session=abc token: xyz")
 	if strings.Contains(got, "secret") || strings.Contains(got, "abc") || strings.Contains(got, "xyz") {
@@ -266,6 +288,36 @@ func TestClientAuthenticatesAndOnlyReadsVerifiedEndpoint(t *testing.T) {
 	}
 	if _, err := client.Create(context.Background(), Resource{}); err == nil || !strings.Contains(err.Error(), "sandbox gate") {
 		t.Fatalf("create = %v", err)
+	}
+}
+
+func TestClientRejectsRedirectsBeforeForwardingSession(t *testing.T) {
+	redirected := false
+	destination := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		redirected = true
+		if r.Header.Get("X-Cloud-Session") != "" {
+			t.Error("session header was forwarded to redirect destination")
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer destination.Close()
+	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/identity/sessions":
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"session":{"id":"session-secret"}}`))
+		case "/cloud/subnets/subnet-1":
+			http.Redirect(w, r, destination.URL, http.StatusTemporaryRedirect)
+		}
+	}))
+	defer source.Close()
+	client, err := NewClient(Credentials{Username: "user", Password: "password"}, source.URL+"/identity", source.URL+"/cloud", source.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.ObserveRecorded(context.Background(), Resource{Identity: "subnet", Kind: SubnetResource}, ResourceState{ID: "subnet-1"})
+	if err == nil || !strings.Contains(err.Error(), "unexpected HTTP 307") || redirected {
+		t.Fatalf("redirected=%t err=%v", redirected, err)
 	}
 }
 
