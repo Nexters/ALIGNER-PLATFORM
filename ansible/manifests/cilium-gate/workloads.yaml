@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client
+  namespace: cilium-gate-policy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cilium-gate
+      role: client
+  template:
+    metadata:
+      labels:
+        app: cilium-gate
+        role: client
+    spec:
+      containers:
+        - name: client
+          image: busybox:1.36.1
+          command: [sleep, "3600"]
+          resources:
+            requests: {cpu: 25m, memory: 32Mi, ephemeral-storage: 64Mi}
+            limits: {cpu: 100m, memory: 64Mi, ephemeral-storage: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: cilium-gate-policy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cilium-gate
+      role: web
+  template:
+    metadata:
+      labels:
+        app: cilium-gate
+        role: web
+    spec:
+      containers:
+        - name: web
+          image: nginxinc/nginx-unprivileged:1.27.4-alpine
+          ports: [{containerPort: 8080}]
+          resources:
+            requests: {cpu: 50m, memory: 64Mi, ephemeral-storage: 128Mi}
+            limits: {cpu: 200m, memory: 128Mi, ephemeral-storage: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 101
+          volumeMounts:
+            - name: nginx-tmp
+              mountPath: /tmp
+      volumes:
+        - name: nginx-tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: cilium-gate-policy
+spec:
+  selector:
+    app: cilium-gate
+    role: web
+  ports:
+    - port: 80
+      targetPort: 8080
