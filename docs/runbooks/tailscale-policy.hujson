@@ -1,0 +1,12 @@
+{
+  "tagOwners": {
+    "tag:aligner-prod": ["autogroup:admin"],
+  },
+  "grants": [
+    {
+      "src": ["autogroup:admin"],
+      "dst": ["tag:aligner-prod"],
+      "ip": ["tcp:22", "tcp:6443"],
+    },
+  ],
+}

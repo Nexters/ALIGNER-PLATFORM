@@ -14,7 +14,7 @@ def passing_result():
     return {
         "issue": 35, "status": "PASS",
         "environment": {"name": "rebuild-issue-35", "classification": "isolated-rebuild", "cost_limit_krw": 100000, "started_at_utc": "2026-08-12T00:00:00Z", "ended_at_utc": "2026-08-12T01:00:00Z", "deletion_owner": "platform-oncall"},
-        "phases": {"l1_gabiactl": True, "l2_wireguard_ansible_k3s_cilium": True, "l3_argo_root": True},
+        "phases": {"l1_gabiactl": True, "l2_tailscale_ansible_k3s_cilium": True, "l3_argo_root": True},
         "restores": {item: {"r2_checksum": checksum, "restored_checksum": checksum, "checksum_match": True} for item in ("etcd", "postgresql")},
         "public_validation": {item: True for item in ("load_balancer", "dns", "tls", "login", "core_write")},
         "outcomes": {"total_rto_seconds": 3600, "total_rpo_seconds": 60, "manual_actions": ["approval"], "failures": [], "actual_cost_krw": 50000},

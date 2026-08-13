@@ -45,6 +45,8 @@ Git에는 credential Secret, project/identity ID, 또는 secret 값이 없다. �
 이력을 스캔한다(`.github/workflows/secret-scan.yml`). `--only-verified`로 실제로 살아있는
 자격증명(발견한 키로 해당 서비스 API에 검증 요청까지 보내 확인한 것)만 CI를 실패시킨다.
 GitHub Secret Scanning과 Push Protection도 활성화돼 있다.
+Tailscale 인증 키와 API 토큰은 검증 가능 여부와 관계없이 별도 패턴 검사로 커밋 이력 전체를
+차단한다.
 
 > **gitleaks 대신 trufflehog를 선택한 이유**: `gitleaks-action`은 Organization 소유
 > 저장소(`Nexters/*`)에서 무료 라이선스(`GITLEAKS_LICENSE`)를 요구한다. trufflehog OSS

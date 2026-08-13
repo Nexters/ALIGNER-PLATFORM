@@ -10,6 +10,9 @@ tls-san:
 {% for ip in k3s_node_ips %}
   - {{ ip }}
 {% endfor %}
+{% for name in groups['k3s_servers'] %}
+  - {{ name }}
+{% endfor %}
 
 node-name: "{{ inventory_hostname }}"
 node-ip: "{{ private_ip }}"

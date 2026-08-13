@@ -25,14 +25,13 @@
   delegate_to: "{{ groups['k3s_first_server'][0] }}"
   become: true
 
-- name: Kubeconfig API 주소를 WireGuard 경유 사설 IP로 변경
+- name: Kubeconfig API 주소를 Tailscale MagicDNS 이름으로 변경
   vars:
-    k3s_first_server_private_ip: >-
-      {{ hostvars[groups['k3s_first_server'][0]]['private_ip'] }}
+    k3s_first_server_tailscale_name: "{{ groups['k3s_first_server'][0] }}"
   ansible.builtin.replace:
     path: "{{ playbook_dir }}/../../.runtime/kubeconfig"
     regexp: 'server: https://127\.0\.0\.1:6443'
-    replace: "server: https://{{ k3s_first_server_private_ip }}:6443"
+    replace: "server: https://{{ k3s_first_server_tailscale_name }}:6443"
     mode: "0600"
 
 - name: Cilium Helm repo 추가

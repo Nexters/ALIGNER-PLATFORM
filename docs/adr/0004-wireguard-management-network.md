@@ -2,7 +2,7 @@
 
 ## 상태
 
-Accepted
+Superseded by [ADR 0007](0007-tailscale-management-network.md)
 
 ## 결정
 

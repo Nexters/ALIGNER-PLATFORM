@@ -20,6 +20,8 @@ kubeconfig
 *.key
 *.p12
 *.pfx
+*.authkey
+*.tskey
 .env
 .env.*
 vault-password*
@@ -30,5 +32,6 @@ secrets/plaintext/
 .vscode/
 .DS_Store
 .ansible/
+.serena/
 __pycache__/
 *.py[cod]
