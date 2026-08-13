@@ -49,9 +49,10 @@
 Server와 Volume 연결은 `POST /servers/{serverId}/volumes/{volumeId}`, 해제는 같은 경로의
 `DELETE`다. NIC 추가·삭제는 `/servers/{serverId}/nics` 하위 호출을 사용한다.
 
-Security Group 규칙 수정은 실제 운영 적용에서 `PUT /securitygroups/{id}`에 `rules`만
-보내는 계약을 확인했다. 기존 `name`과 `description`을 함께 보내면 동일 이름 충돌로 `409`가
-발생한다. 임시 SSH `/32` 규칙 제거 후 나머지 규칙 수와 WireGuard SSH를 다시 검증했다.
+Security Group의 `PUT /securitygroups/{id}` 경로는 콘솔 번들에서만 확인했다. 요청 전체
+schema, `409` 동작, 기존 규칙 보존과 rollback을 redacted sandbox 증적으로 남기기 전에는
+`gabiactl` write 계약으로 사용하지 않는다. 규칙 변경은 콘솔에서 각 규칙의 방향, protocol,
+port와 CIDR을 비교해 임시 관리 규칙만 제거하고 나머지가 보존됐는지 확인한다.
 
 ## Server 생성 계약
 
