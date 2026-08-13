@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -83,7 +84,7 @@ type ServerState struct {
 
 func Run(args []string, out io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: gabiactl <validate|apply|status|inventory|access|destroy> -f <file>")
+		return errors.New("usage: gabiactl <validate|plan|apply|status|inventory|access|destroy> -f <file>")
 	}
 	switch args[0] {
 	case "validate":
@@ -191,7 +192,7 @@ func loadDesired(args []string) (Desired, error) {
 	if err != nil {
 		return Desired{}, fmt.Errorf("read desired infrastructure: %w", err)
 	}
-	decoder := yaml.NewDecoder(strings.NewReader(string(b)))
+	decoder := yaml.NewDecoder(bytes.NewReader(b))
 	decoder.KnownFields(true)
 	var desired Desired
 	if err := decoder.Decode(&desired); err != nil {
@@ -246,7 +247,7 @@ func validateDesired(d Desired, requireImage bool) error {
 		problems = append(problems, "load_balancer.listeners is required")
 	}
 	for _, l := range d.LoadBalancer.Listeners {
-		if (l.Port != 80 && l.Port != 443) || (l.Protocol != "HTTP" && l.Protocol != "HTTPS") || l.TargetPort < 1 || l.TargetPort > 65535 {
+		if !((l.Port == 80 && l.Protocol == "HTTP") || (l.Port == 443 && l.Protocol == "HTTPS")) || l.TargetPort < 1 || l.TargetPort > 65535 {
 			problems = append(problems, "load balancer listeners allow only HTTP/80 or HTTPS/443 with a valid target_port")
 			break
 		}
@@ -283,7 +284,7 @@ func status(d Desired, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	credentials, err := ReadCredentials(nil, out)
+	credentials, err := ReadCredentials(os.Stderr)
 	if err != nil {
 		return err
 	}
@@ -297,7 +298,9 @@ func status(d Desired, out io.Writer) error {
 		if !ok || recorded.ID == "" {
 			continue
 		}
-		found, observeErr := client.ObserveRecorded(context.Background(), resource, recorded)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		found, observeErr := client.ObserveRecorded(ctx, resource, recorded)
+		cancel()
 		if observeErr != nil {
 			if strings.Contains(observeErr.Error(), "not contract-verified") {
 				unavailable++
@@ -332,6 +335,9 @@ func inventory(args []string, out io.Writer) error {
 	if err := Validate(d); err != nil {
 		return err
 	}
+	if d.Servers.Count != 3 || strings.Join(d.Servers.Names, ",") != "k3s-01,k3s-02,k3s-03" {
+		return errors.New("inventory requires exactly k3s-01, k3s-02, and k3s-03")
+	}
 	state, err := readStateForServers(d.Environment, d.Servers.Names)
 	if err != nil {
 		return fmt.Errorf("inventory requires sandbox-verified state: %w", err)
@@ -348,11 +354,25 @@ func inventory(args []string, out io.Writer) error {
 		if _, err := netip.ParseAddr(address); err != nil {
 			return fmt.Errorf("inventory %s address for %s is unavailable", *via, name)
 		}
-		hosts[name] = map[string]string{"ansible_host": address}
+		hosts[name] = map[string]string{"ansible_host": address, "private_ip": server.PrivateIP, "public_ip": server.PublicIP}
+	}
+	groupHosts := func(names []string) map[string]any {
+		group := make(map[string]any, len(names))
+		for _, name := range names {
+			group[name] = map[string]any{}
+		}
+		return group
+	}
+	children := map[string]any{
+		"k3s_servers":         map[string]any{"hosts": groupHosts(d.Servers.Names)},
+		"k3s_first_server":    map[string]any{"hosts": groupHosts(d.Servers.Names[:1])},
+		"management_gateways": map[string]any{"hosts": groupHosts(d.Servers.Names[:2])},
 	}
 	var inventory bytes.Buffer
 	encoder := yaml.NewEncoder(&inventory)
-	if err := encoder.Encode(map[string]any{"all": map[string]any{"hosts": hosts}}); err != nil {
+	if err := encoder.Encode(map[string]any{"all": map[string]any{
+		"hosts": hosts, "vars": map[string]string{"vpc_cidr": d.Network.VPCCIDR}, "children": children,
+	}}); err != nil {
 		return err
 	}
 	if err := encoder.Close(); err != nil {
@@ -383,6 +403,12 @@ func destroy(args []string, out io.Writer) error {
 	if *confirm != d.Environment {
 		return fmt.Errorf("destroy requires --confirm %s", d.Environment)
 	}
+	resources := desiredResources(d)
+	for i := len(resources) - 1; i >= 0; i-- {
+		if _, err := fmt.Fprintf(out, "destroy %s\n", resources[i].Identity); err != nil {
+			return err
+		}
+	}
 	return apiGate("destroy")
 }
 
@@ -405,7 +431,7 @@ func access(args []string, out io.Writer) error {
 		return err
 	}
 	selected := strings.Split(*targets, ",")
-	if *targets == "" || len(selected) == 0 {
+	if *targets == "" {
 		return errors.New("access requires --targets")
 	}
 	known := map[string]bool{}

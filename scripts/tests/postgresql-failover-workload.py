@@ -12,6 +12,7 @@ import time
 KUBECTL = "kubectl"
 NAMESPACE = "aligner-data"
 CLUSTER = "aligner-db"
+RW_SERVICE = "aligner-db-rw"
 MAX_SAMPLES = 3600
 WRITE_SQL = "CREATE TEMP TABLE failover_drill (id integer); INSERT INTO failover_drill VALUES (1);"
 READ_SQL = "SELECT 1;"
@@ -37,7 +38,7 @@ def probe(operation, sql):
     try:
         pod = primary_pod()
         completed = subprocess.run(
-            [KUBECTL, "-n", NAMESPACE, "exec", pod, "--", "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-qAt", "-c", sql],
+            [KUBECTL, "-n", NAMESPACE, "exec", pod, "--", "psql", "-h", RW_SERVICE, "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-qAt", "-c", sql],
             capture_output=True,
             text=True,
             check=False,

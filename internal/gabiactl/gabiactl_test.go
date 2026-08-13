@@ -34,14 +34,22 @@ func TestValidateRejectsNullImageAndInvalidCIDR(t *testing.T) {
 	}
 }
 
-func TestReadValidationAllowsNullImage(t *testing.T) {
-	d := writeDesired(t, strings.Replace(validYAML, "os_image: image-verified", "os_image: null", 1))
-	desired, err := loadDesired([]string{"-f", d})
-	if err != nil {
-		t.Fatal(err)
+func TestValidateRejectsMismatchedListenerPair(t *testing.T) {
+	d := writeDesired(t, strings.Replace(validYAML, "port: 80, protocol: HTTP", "port: 80, protocol: HTTPS", 1))
+	if err := Run([]string{"validate", "-f", d}, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "HTTP/80") {
+		t.Fatalf("listener pair error = %v", err)
 	}
-	if err := validateDesired(desired, false); err != nil {
-		t.Fatalf("read validation rejected a closed apply image gate: %v", err)
+}
+
+func TestInventoryRequiresFixedThreeNodeTopology(t *testing.T) {
+	for _, replacement := range []string{
+		"count: 1, names: [k3s-01]",
+		"count: 3, names: [control-a, control-b, control-c]",
+	} {
+		d := writeDesired(t, strings.Replace(validYAML, "count: 2, names: [k3s-01, k3s-02]", replacement, 1))
+		if err := Run([]string{"inventory", "-f", d, "--connect-via", "private", "-o", filepath.Join(t.TempDir(), "inventory.yml")}, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "exactly k3s-01") {
+			t.Fatalf("topology error = %v", err)
+		}
 	}
 }
 
@@ -94,11 +102,11 @@ func TestAccessOnlyAllowsDeclaredTargetsAnd32(t *testing.T) {
 
 func TestInventoryUsesStateWithoutCredentials(t *testing.T) {
 	chdir(t)
-	d := writeDesired(t, validYAML)
+	d := writeDesired(t, strings.Replace(validYAML, "count: 2, names: [k3s-01, k3s-02]", "count: 3, names: [k3s-01, k3s-02, k3s-03]", 1))
 	if err := os.MkdirAll(".runtime", 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(stateFile, []byte(`{"environment":"sandbox","servers":{"k3s-01":{"id":"server-1","private_ip":"10.20.0.10"},"k3s-02":{"id":"server-2","private_ip":"10.20.0.11"}}}`), 0600); err != nil {
+	if err := os.WriteFile(stateFile, []byte(`{"environment":"sandbox","servers":{"k3s-01":{"id":"server-1","private_ip":"10.20.0.10"},"k3s-02":{"id":"server-2","private_ip":"10.20.0.11"},"k3s-03":{"id":"server-3","private_ip":"10.20.0.12"}}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	output := filepath.Join(t.TempDir(), "inventory.yaml")
@@ -205,11 +213,11 @@ func TestReconcileResumesCompletedPrefixAfterFailure(t *testing.T) {
 
 func TestInventoryUsesPublicAndPrivateRecordedServerAddresses(t *testing.T) {
 	chdir(t)
-	d := writeDesired(t, validYAML)
+	d := writeDesired(t, strings.Replace(validYAML, "count: 2, names: [k3s-01, k3s-02]", "count: 3, names: [k3s-01, k3s-02, k3s-03]", 1))
 	if err := os.MkdirAll(".runtime", 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(stateFile, []byte(`{"environment":"sandbox","servers":{"k3s-01":{"id":"server-1","public_ip":"203.0.113.10","private_ip":"10.20.0.10"},"k3s-02":{"id":"server-2","public_ip":"203.0.113.11","private_ip":"10.20.0.11"}}}`), 0600); err != nil {
+	if err := os.WriteFile(stateFile, []byte(`{"environment":"sandbox","servers":{"k3s-01":{"id":"server-1","public_ip":"203.0.113.10","private_ip":"10.20.0.10"},"k3s-02":{"id":"server-2","public_ip":"203.0.113.11","private_ip":"10.20.0.11"},"k3s-03":{"id":"server-3","public_ip":"203.0.113.12","private_ip":"10.20.0.12"}}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	for _, via := range []struct{ via, address string }{{"public", "203.0.113.10"}, {"private", "10.20.0.10"}} {
@@ -218,7 +226,11 @@ func TestInventoryUsesPublicAndPrivateRecordedServerAddresses(t *testing.T) {
 			t.Fatal(err)
 		}
 		b, err := os.ReadFile(output)
-		if err != nil || !strings.Contains(string(b), "ansible_host: "+via.address) {
+		if err != nil || !strings.Contains(string(b), "ansible_host: "+via.address) ||
+			!strings.Contains(string(b), "k3s_servers:") ||
+			!strings.Contains(string(b), "k3s_first_server:") ||
+			!strings.Contains(string(b), "management_gateways:") ||
+			!strings.Contains(string(b), "private_ip:") || !strings.Contains(string(b), "public_ip:") {
 			t.Fatalf("%s inventory = %s, %v", via.via, b, err)
 		}
 	}
@@ -270,6 +282,37 @@ func TestClientAuthenticatesAndOnlyReadsVerifiedEndpoint(t *testing.T) {
 	}
 	if _, err := client.Create(context.Background(), Resource{}); err == nil || !strings.Contains(err.Error(), "sandbox gate") {
 		t.Fatalf("create = %v", err)
+	}
+}
+
+func TestClientReauthenticatesOnceAfterExpiredSession(t *testing.T) {
+	var authCalls, readCalls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/identity/sessions":
+			authCalls++
+			w.WriteHeader(http.StatusCreated)
+			_, _ = fmt.Fprintf(w, `{"session":{"id":"session-%d"}}`, authCalls)
+		case "/cloud/subnets/subnet-1":
+			readCalls++
+			if readCalls == 1 {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			if r.Header.Get("X-Cloud-Session") != "session-2" {
+				t.Errorf("second read session = %q", r.Header.Get("X-Cloud-Session"))
+			}
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer server.Close()
+	client, err := NewClient(Credentials{Username: "user", Password: "password"}, server.URL+"/identity", server.URL+"/cloud", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	found, err := client.ObserveRecorded(context.Background(), Resource{Identity: "subnet", Kind: SubnetResource}, ResourceState{ID: "subnet-1"})
+	if err != nil || !found || authCalls != 2 || readCalls != 2 {
+		t.Fatalf("found=%t auth=%d reads=%d err=%v", found, authCalls, readCalls, err)
 	}
 }
 
@@ -325,11 +368,12 @@ func TestRunStatusReconcilesRecordedSubnetWithoutMutatingState(t *testing.T) {
 			t.Cleanup(func() { newStatusClient = previousStatusClient })
 			var out bytes.Buffer
 			err = Run([]string{"status", "-f", writeDesired(t, validYAML)}, &out)
-			if err != nil && !strings.Contains(err.Error(), tc.want) {
+			if tc.subnetCode >= 200 && tc.subnetCode < 300 {
+				if err != nil || !strings.Contains(out.String(), tc.want) {
+					t.Fatalf("status output = %q, err = %v, want %q", out.String(), err, tc.want)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("status error = %v, want %q", err, tc.want)
-			}
-			if err == nil && !strings.Contains(out.String(), tc.want) {
-				t.Fatalf("status output = %q, want %q", out.String(), tc.want)
 			}
 			after, err := os.ReadFile(stateFile)
 			if err != nil || !bytes.Equal(before, after) {

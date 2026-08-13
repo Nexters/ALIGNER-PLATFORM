@@ -111,7 +111,10 @@ def main():
         for namespace in REQUIRED_NAMESPACES:
             pods = run(K3S, "kubectl", "-n", namespace, "get", "pods", "-o", "json")["items"]
             all_pods.extend(pods)
-            bad = [pod["metadata"]["name"] for pod in pods if pod.get("status", {}).get("phase") == "Pending" or (pod.get("status", {}).get("phase") == "Running" and not truthy_condition(pod.get("status", {}).get("conditions"), "Ready"))]
+            healthy = [pod for pod in pods if pod.get("status", {}).get("phase") == "Running" and truthy_condition(pod.get("status", {}).get("conditions"), "Ready")]
+            bad = [pod["metadata"]["name"] for pod in pods if pod.get("status", {}).get("phase") not in {"Running", "Succeeded"} or (pod.get("status", {}).get("phase") == "Running" and not truthy_condition(pod.get("status", {}).get("conditions"), "Ready"))]
+            if not healthy:
+                raise AssertionError(f"{namespace}: no Running and Ready workload pod")
             if bad:
                 raise AssertionError(f"{namespace}: unhealthy or Pending pods: {','.join(bad)}")
     check("required-workloads", ",".join(REQUIRED_NAMESPACES), SAFE_COMMANDS["workloads"], assert_workloads)

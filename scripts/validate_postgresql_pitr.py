@@ -9,12 +9,13 @@ import sys
 
 ALLOWED_STATUS = {"NOT_EXECUTED", "PASS", "FAIL"}
 SECRET_MARKERS = re.compile(r"(authorization|credential|password|secret|token|access[_-]?key|private[_-]?key)", re.I)
+ALLOWED_SECRET_METADATA_KEYS = {"restore_credential_mode", "restore_credential_revoked"}
 
 
 def secret_like_keys(value):
     if isinstance(value, dict):
         for key, nested_value in value.items():
-            if isinstance(key, str) and SECRET_MARKERS.search(key):
+            if isinstance(key, str) and key not in ALLOWED_SECRET_METADATA_KEYS and SECRET_MARKERS.search(key):
                 yield key
             yield from secret_like_keys(nested_value)
     elif isinstance(value, list):

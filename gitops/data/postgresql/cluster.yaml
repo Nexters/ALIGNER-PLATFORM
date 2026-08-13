@@ -17,6 +17,7 @@ spec:
     storageClass: aligner-local-path
   affinity:
     enablePodAntiAffinity: true
+    podAntiAffinityType: required
     topologyKey: kubernetes.io/hostname
   postgresql:
     parameters:
