@@ -7,9 +7,9 @@
 
 | 항목 | 상태 | 결정 또는 중단 조건 |
 | --- | --- | --- |
-| VPC/subnet | 확인됨 | `10.20.0.0/16`, `10.20.0.0/24`를 사용한다. 콘솔 조사에서 RFC1918 `/8`~`/24` VPC와 `/24` subnet을 확인했다. |
+| VPC/subnet | 확인됨 | `{{ vpc_cidr }}`와 `{{ subnet_cidr }}`를 사용한다. VPC는 RFC1918 `/8`~`/24`, subnet은 VPC에 포함된 `/24`여야 한다. 실제 값은 bootstrap 입력에만 둔다. |
 | Ubuntu 24.04 | 부분 확인 | 콘솔에 Ubuntu 24.04가 노출되는 것은 확인됐다. image ID는 대상 프로젝트에서 이미지 목록을 다시 조회해 정확히 하나인 ID를 기록하기 전까지 `os_image: null`을 유지하고 apply를 중단한다. |
-| data volume 2개 | 미검증 | 공개 번들은 root와 복수 blank volume 요청 형식을 보이지만, 계정 sandbox에서 서버 1대에 25 GiB와 40 GiB를 attach→재조회→detach할 때까지 두 볼륨 구성을 확정하지 않는다. 실패하면 단일 65 GiB volume과 `/mnt/k3s`, `/mnt/aligner` 디렉터리를 사용하고 사용량 경보를 추가한다. |
+| data volume 2개 | 미검증 | 공개 번들은 root와 복수 blank volume 요청 형식을 보이지만, 계정 sandbox에서 서버 1대에 두 volume을 attach→재조회→detach할 때까지 구성을 확정하지 않는다. 실패하면 apply를 중단한다. 단일-volume 모드는 desired-state와 mount 계약을 별도로 구현·검증하기 전에는 사용하지 않는다. |
 | 콘솔/VNC, 장애 도메인, LB health check | 부분 확인 | API 경로와 health-monitor 설정 가능성은 확인됐다. web console/VNC 실제 접속, `availability_zone`/배치 정책, LB의 실제 health-check 전환은 sandbox에서 확인 전까지 가용성 주장이나 운영 Gate 통과 근거로 쓰지 않는다. |
 
 가비아 근거는 로컬의 [Gen2 API 계약](gabia-gen2-api-contract.md)이며, 이는 2026-08-08
@@ -45,15 +45,16 @@ ID, bucket 이름, snapshot 내용은 Git·명령 기록에 넣지 않는다.
    `--etcd-s3-bucket-lookup-type=path`를 설정한다. snapshot 생성 뒤 R2에 객체가 생기는지
    확인하고, 별도 복구 환경에서 같은 K3s token으로 `--cluster-reset --cluster-reset-restore-path`
    복구를 실행한다. 세 member Ready와 시험 데이터의 존재를 확인한다.
-2. CNPG 1.26 이상과 Barman Cloud Plugin을 사용해 test cluster의 base backup과 WAL archive를
+2. CNPG Operator `1.30.0`과 Barman Cloud Plugin `0.14.0`을 사용해 test cluster의 base backup과 WAL archive를
    R2에 저장한다. 새 cluster의 `bootstrap.recovery`와 별도 `externalClusters` source로 PITR을
-   수행한다. source와 recovery cluster는 같은 `barmanObjectStore` 설정을 재사용하지 않고,
-   시험 데이터 정합성을 확인한다.
+   수행한다. 복구 전용 `ObjectStore`를 만들고 `externalClusters.plugin.parameters`의
+   `barmanObjectName`이 이를 참조하게 하며, source별 고유 `serverName`을 사용한다. source와
+   recovery cluster는 같은 설정을 재사용하지 않고 시험 데이터 정합성을 확인한다.
 3. 둘 중 하나라도 실패하면 R2를 프로덕션 backup store로 사용하지 않는다. 원인은 endpoint,
-   region/lookup type, TLS, IAM permission, Barman plugin 버전으로 분리해 기록하고 AWS S3로
-   전환한다.
+   region/lookup type, TLS, IAM permission, Barman plugin 버전으로 분리해 기록하고 중단한다.
+   AWS S3도 동일한 acceptance test와 별도 승인을 통과한 뒤에만 대안으로 사용할 수 있다.
 
 - [Cloudflare R2 S3 API compatibility](https://developers.cloudflare.com/r2/api/s3/api/)
 - [K3s server S3 snapshot options](https://docs.k3s.io/cli/server)
 - [CloudNativePG Barman Cloud Plugin requirements](https://cloudnative-pg.io/plugin-barman-cloud/docs/intro/)
-- [CloudNativePG recovery](https://cloudnative-pg.io/docs/1.25/recovery/)
+- [CloudNativePG 1.30 recovery](https://cloudnative-pg.io/docs/1.30/recovery/)
