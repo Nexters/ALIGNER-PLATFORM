@@ -118,7 +118,7 @@ func Run(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		if err := Validate(d); err != nil {
+		if err := validateDesired(d, false); err != nil {
 			return err
 		}
 		return status(d, out)
@@ -201,6 +201,10 @@ func loadDesired(args []string) (Desired, error) {
 }
 
 func Validate(d Desired) error {
+	return validateDesired(d, true)
+}
+
+func validateDesired(d Desired, requireImage bool) error {
 	var problems []string
 	if d.Version != "v1" {
 		problems = append(problems, "version must be v1")
@@ -218,7 +222,7 @@ func Validate(d Desired) error {
 	} else if vpcErr == nil && !vpc.Contains(subnet.Addr()) {
 		problems = append(problems, "network.subnet_cidr must be contained by network.vpc_cidr")
 	}
-	if d.Servers.OSImage == nil || strings.TrimSpace(*d.Servers.OSImage) == "" {
+	if requireImage && (d.Servers.OSImage == nil || strings.TrimSpace(*d.Servers.OSImage) == "") {
 		problems = append(problems, "servers.os_image must be a confirmed image ID (null closes the apply gate)")
 	}
 	if d.Servers.Flavor == "" {
@@ -266,6 +270,10 @@ func apiGate(command string) error {
 	return fmt.Errorf("%s blocked: Gabia write API sandbox gate is not complete; no API request or state mutation was made", command)
 }
 
+var newStatusClient = func(credentials Credentials) (*Client, error) {
+	return NewClient(credentials, "", "", nil)
+}
+
 func status(d Desired, out io.Writer) error {
 	state, err := readStateForServers(d.Environment, d.Servers.Names)
 	if errors.Is(err, os.ErrNotExist) {
@@ -279,30 +287,26 @@ func status(d Desired, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	client, err := NewClient(credentials, os.Getenv("GABIACLOUD_IDENTITY_ENDPOINT"), os.Getenv("GABIACLOUD_CLOUD_ENDPOINT"), nil)
-	if err != nil {
-		return err
-	}
-	steps, err := Plan(d, state)
+	client, err := newStatusClient(credentials)
 	if err != nil {
 		return err
 	}
 	verified, unavailable := 0, 0
-	for _, step := range steps {
-		recorded, ok := state.Resources[step.Resource.Identity]
+	for _, resource := range desiredResources(d) {
+		recorded, ok := state.Resources[resource.Identity]
 		if !ok || recorded.ID == "" {
 			continue
 		}
-		found, observeErr := client.ObserveRecorded(context.Background(), step.Resource, recorded)
+		found, observeErr := client.ObserveRecorded(context.Background(), resource, recorded)
 		if observeErr != nil {
 			if strings.Contains(observeErr.Error(), "not contract-verified") {
 				unavailable++
 				continue
 			}
-			return fmt.Errorf("status %s: %w", step.Resource.Identity, observeErr)
+			return fmt.Errorf("status %s: %w", resource.Identity, observeErr)
 		}
 		if !found {
-			return fmt.Errorf("status drift: %s (%s) is absent remotely", step.Resource.Identity, recorded.ID)
+			return fmt.Errorf("status drift: %s (%s) is absent remotely", resource.Identity, recorded.ID)
 		}
 		verified++
 	}

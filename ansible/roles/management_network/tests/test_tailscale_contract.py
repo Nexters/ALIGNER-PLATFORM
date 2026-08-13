@@ -29,6 +29,7 @@ class TailscaleManagementContractTest(unittest.TestCase):
     def test_legacy_removal_is_double_gated_and_scoped(self) -> None:
         self.assertIn("management_network_remove_legacy_wireguard: false", self.defaults)
         self.assertIn("management_network_legacy_wireguard_removal_approved: false", self.defaults)
+        self.assertIn("ansible_host == inventory_hostname", self.tasks)
         self.assertIn("difference(['wg0.conf'])", self.tasks)
 
     def test_running_node_skips_authentication(self) -> None:

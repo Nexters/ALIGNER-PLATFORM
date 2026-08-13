@@ -18,14 +18,25 @@ ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook \
   -i .runtime/bootstrap-inventory.yaml \
   ansible/playbooks/management-access.yml \
   -e management_network_tailscale_runtime_approved=true \
-  -e management_network_tailscale_auth_key_file="$PWD/.runtime/tailscale/bootstrap.authkey" \
+  -e management_network_tailscale_auth_key_file="$PWD/.runtime/tailscale/bootstrap.authkey"
+```
+
+세 노드의 MagicDNS SSH를 아래와 같이 검증한 뒤, Tailscale inventory를 겹쳐서 다시
+실행해야만 기존 WireGuard를 제거할 수 있다.
+
+```bash
+ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook \
+  -i .runtime/inventory.yaml \
+  -i ansible/inventories/tailscale/hosts.yml \
+  ansible/playbooks/management-access.yml \
+  -e management_network_tailscale_runtime_approved=true \
   -e management_network_remove_legacy_wireguard=true \
   -e management_network_legacy_wireguard_removal_approved=true
 ```
 
-role은 Tailscale `Running`, hostname, `tag:aligner-prod`를 먼저 확인한 후에만 기존
-`wg-quick@wg0`, `/etc/wireguard`, WireGuard 패키지를 제거한다. 서버 등록이
-끝나면 Tailscale 콘솔에서 bootstrap auth key를 revoke한다.
+role은 인증된 MagicDNS Ansible SSH 연결, Tailscale `Running`, hostname,
+`tag:aligner-prod`를 모두 확인한 후에만 `wg-quick@wg0`, `/etc/wireguard`, WireGuard
+패키지를 제거한다. 서버 등록이 끝나면 Tailscale 콘솔에서 bootstrap auth key를 revoke한다.
 
 ## 접근 검증
 

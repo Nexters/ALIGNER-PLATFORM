@@ -34,6 +34,17 @@ func TestValidateRejectsNullImageAndInvalidCIDR(t *testing.T) {
 	}
 }
 
+func TestReadValidationAllowsNullImage(t *testing.T) {
+	d := writeDesired(t, strings.Replace(validYAML, "os_image: image-verified", "os_image: null", 1))
+	desired, err := loadDesired([]string{"-f", d})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateDesired(desired, false); err != nil {
+		t.Fatalf("read validation rejected a closed apply image gate: %v", err)
+	}
+}
+
 func TestMutationsFailClosedWithoutCreatingState(t *testing.T) {
 	chdir(t)
 	d := writeDesired(t, validYAML)
@@ -307,8 +318,11 @@ func TestRunStatusReconcilesRecordedSubnetWithoutMutatingState(t *testing.T) {
 			defer server.Close()
 			t.Setenv("GABIACLOUD_USERNAME", "user")
 			t.Setenv("GABIACLOUD_PASSWORD", "password")
-			t.Setenv("GABIACLOUD_IDENTITY_ENDPOINT", server.URL+"/identity")
-			t.Setenv("GABIACLOUD_CLOUD_ENDPOINT", server.URL+"/cloud")
+			previousStatusClient := newStatusClient
+			newStatusClient = func(credentials Credentials) (*Client, error) {
+				return NewClient(credentials, server.URL+"/identity", server.URL+"/cloud", server.Client())
+			}
+			t.Cleanup(func() { newStatusClient = previousStatusClient })
 			var out bytes.Buffer
 			err = Run([]string{"status", "-f", writeDesired(t, validYAML)}, &out)
 			if err != nil && !strings.Contains(err.Error(), tc.want) {

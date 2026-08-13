@@ -148,13 +148,15 @@
   ansible.builtin.assert:
     that:
       - management_network_legacy_wireguard_removal_approved | bool
+      - ansible_host == inventory_hostname
       - >-
         management_network_legacy_wireguard_paths.files
         | map(attribute='path') | map('basename')
         | difference(['wg0.conf']) | length == 0
     fail_msg: >-
-      Legacy removal requires a separate approval and refuses unknown content
-      below /etc/wireguard.
+      Legacy removal requires a separate approval, an authenticated Ansible
+      connection through the node's Tailscale MagicDNS name, and no unknown
+      content below /etc/wireguard.
   when: management_network_remove_legacy_wireguard | bool
 
 - name: Legacy WireGuard service 중지와 비활성화
