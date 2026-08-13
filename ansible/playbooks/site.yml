@@ -18,7 +18,7 @@
     #    management_network 로 새 접속 경로를 확보하고 실제로 접속에 성공한
     #    것을 확인한 뒤에만 firewall 로 22/6443 공인망을 차단한다.
     #    순서를 바꾸면 3노드 동시 잠금 사고가 난다 (설계 문서 Phase 1 참조).
-    - management_network  # WireGuard gateway 2대
+    - management_network  # Tailscale agent 3대
     - firewall             # 22/6443 공인망 차단 — break-glass 검증 후에만
 
 - name: K3s 첫 서버 부트스트랩

@@ -2,6 +2,7 @@
 
 ANSIBLE_CONFIG := $(CURDIR)/ansible/ansible.cfg
 ANSIBLE_COLLECTIONS_PATH := $(CURDIR)/.ansible/collections
+TAILSCALE_INVENTORY := $(CURDIR)/ansible/inventories/tailscale/hosts.yml
 
 lint:
 	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-lint ansible/
@@ -20,7 +21,7 @@ render:
 
 bootstrap-access:
 	@test -n "$$ALIGNER_BOOTSTRAP_CIDR" || (echo "ALIGNER_BOOTSTRAP_CIDR=<current-ip>/32 가 필요합니다"; exit 1)
-	gabiactl access open -f infra/bootstrap/desired-infrastructure.yaml --cidr "$$ALIGNER_BOOTSTRAP_CIDR" --targets k3s-01,k3s-02
+	gabiactl access open -f infra/bootstrap/desired-infrastructure.yaml --cidr "$$ALIGNER_BOOTSTRAP_CIDR" --targets k3s-01,k3s-02,k3s-03
 
 bootstrap-inventory:
 	gabiactl inventory -f infra/bootstrap/desired-infrastructure.yaml --connect-via public -o .runtime/bootstrap-inventory.yaml
@@ -32,16 +33,16 @@ inventory:
 	gabiactl inventory -f infra/bootstrap/desired-infrastructure.yaml --connect-via private -o .runtime/inventory.yaml
 
 lockdown:
-	gabiactl access close -f infra/bootstrap/desired-infrastructure.yaml --targets k3s-01,k3s-02
+	gabiactl access close -f infra/bootstrap/desired-infrastructure.yaml --targets k3s-01,k3s-02,k3s-03
 
 site:
-	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/inventory.yaml ansible/playbooks/site.yml
+	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/inventory.yaml -i $(TAILSCALE_INVENTORY) ansible/playbooks/site.yml
 
 verify:
-	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/inventory.yaml ansible/playbooks/verify.yml
+	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/inventory.yaml -i $(TAILSCALE_INVENTORY) ansible/playbooks/verify.yml
 
 verify-cilium:
-	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/inventory.yaml ansible/playbooks/verify-cilium.yml
+	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-playbook -i .runtime/inventory.yaml -i $(TAILSCALE_INVENTORY) ansible/playbooks/verify-cilium.yml
 
 test-verify:
 	python3 ansible/playbooks/scripts/test_verify_production_gate.py

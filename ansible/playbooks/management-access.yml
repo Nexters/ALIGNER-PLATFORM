@@ -1,8 +1,8 @@
 ---
 # 최초 1회 공인 IP의 임시 /32 SSH 경로로 실행한다.
 # 성공 후 사설 inventory로 전환하고 임시 SSH 규칙을 닫는다.
-- name: WireGuard 관리 경로 부트스트랩
-  hosts: management_gateways
+- name: Tailscale 관리 경로 부트스트랩
+  hosts: k3s_servers
   become: true
   gather_facts: true
   roles:

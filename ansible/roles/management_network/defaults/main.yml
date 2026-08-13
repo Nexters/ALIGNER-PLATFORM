@@ -1,0 +1,9 @@
+---
+management_network_tailscale_runtime_approved: false
+management_network_tailscale_version: "1.102.2"
+management_network_tailscale_repo_key_sha256: "3e03dacf222698c60b8e2f990b809ca1b3e104de127767864284e6c228f1fb39"
+management_network_tailscale_server_tag: "tag:aligner-prod"
+management_network_tailscale_auth_key_file: ""
+management_network_tailscale_remote_auth_key_file: /run/aligner-tailscale-auth.key
+management_network_remove_legacy_wireguard: false
+management_network_legacy_wireguard_removal_approved: false

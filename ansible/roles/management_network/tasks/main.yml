@@ -1,142 +1,204 @@
 ---
-- name: WireGuard gateway 구성
-  when: inventory_hostname in groups['management_gateways']
+- name: Tailscale 배포 승인과 대상 확인
+  ansible.builtin.assert:
+    that:
+      - management_network_tailscale_runtime_approved | bool
+      - groups['all'] | sort == ['k3s-01', 'k3s-02', 'k3s-03']
+      - inventory_hostname in ['k3s-01', 'k3s-02', 'k3s-03']
+      - management_network_tailscale_version is match('^[0-9]+\\.[0-9]+\\.[0-9]+$')
+      - management_network_tailscale_server_tag is match('^tag:[a-z0-9-]+$')
+    fail_msg: >-
+      Tailscale deployment is intentionally blocked. Approve the exact three-node
+      inventory and inject a tagged bootstrap auth key through an ignored 0600 file.
+
+- name: Tailscale 저장소 서명 키 설치
+  ansible.builtin.get_url:
+    url: https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    checksum: "sha256:{{ management_network_tailscale_repo_key_sha256 }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Tailscale stable 저장소 구성
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg]
+      https://pkgs.tailscale.com/stable/ubuntu noble main
+    filename: tailscale
+    state: present
+
+- name: 고정 버전 Tailscale 설치
+  ansible.builtin.apt:
+    name: "tailscale={{ management_network_tailscale_version }}"
+    state: present
+    update_cache: true
+
+- name: Tailscale daemon 활성화
+  ansible.builtin.systemd_service:
+    name: tailscaled
+    enabled: true
+    state: started
+
+- name: Tailscale 인증 상태 확인
+  ansible.builtin.command:
+    argv: [tailscale, status, --json]
+  register: management_network_tailscale_status_before
+  changed_when: false
+  failed_when: false
+
+- name: Tailscale 인증 필요 여부 결정
+  ansible.builtin.set_fact:
+    management_network_tailscale_needs_auth: >-
+      {{ management_network_tailscale_status_before.rc != 0 or
+         ((management_network_tailscale_status_before.stdout | default('{}', true) | from_json).BackendState
+          | default('')) != 'Running' }}
+
+- name: 로컬 bootstrap key 파일 확인
+  ansible.builtin.stat:
+    path: "{{ management_network_tailscale_auth_key_file }}"
+  register: management_network_tailscale_local_auth_key
+  delegate_to: localhost
+  become: false
+  when: management_network_tailscale_needs_auth | bool
+
+- name: Bootstrap key 파일 보안 계약 확인
+  ansible.builtin.assert:
+    that:
+      - management_network_tailscale_auth_key_file | length > 0
+      - management_network_tailscale_local_auth_key.stat.exists
+      - management_network_tailscale_local_auth_key.stat.isreg
+      - management_network_tailscale_local_auth_key.stat.mode in ['0400', '0600']
+    fail_msg: Tailscale bootstrap key must be an ignored regular file with mode 0400 or 0600.
+  when: management_network_tailscale_needs_auth | bool
+  no_log: true
+
+- name: Tagged Tailscale server 인증
+  when: management_network_tailscale_needs_auth | bool
   block:
-    - name: WireGuard 배포 승인과 gateway 구성 확인
-      ansible.builtin.assert:
-        that:
-          - wireguard_runtime_approved | default(false) | bool
-          - groups['management_gateways'] | sort == ['k3s-01', 'k3s-02']
-          - wireguard_private_key | default('') | length > 0
-          - wireguard_public_key | default('') | length > 0
-          - wireguard_private_key is match('^[A-Za-z0-9+/]{43}=$')
-          - wireguard_public_key is match('^[A-Za-z0-9+/]{43}=$')
-          - wireguard_address | default('') | length > 0
-          - wireguard_network_cidr | default('') | length > 0
-          - wireguard_vpc_cidr | default('') | length > 0
-          - wireguard_client_profiles_dir | default('') | length > 0
-          - wireguard_peers | length > 0
-          - groups['management_gateways'] | map('extract', hostvars, 'wireguard_address') | list | unique | length == 2
-          - groups['management_gateways'] | map('extract', hostvars, 'wireguard_network_cidr') | list | unique | length == 2
-          - groups['management_gateways'] | map('extract', hostvars, 'wireguard_public_key') | list | unique | length == 2
-          - groups['management_gateways'] | map('extract', hostvars, 'wireguard_profile_name') | list | sort == ['primary', 'secondary']
-        fail_msg: >-
-          승인, gateway key/address, VPC CIDR, peer, profile output을 런타임에 주입해야 합니다.
-      no_log: true
-
-    - name: WireGuard peer별 key와 tunnel IP 확인
-      ansible.builtin.assert:
-        that:
-          - item.name | default('') | length > 0
-          - item.public_key | default('') | length > 0
-          - item.public_key is match('^[A-Za-z0-9+/]{43}=$')
-          - item.allowed_ips is mapping
-          - item.allowed_ips[inventory_hostname] | default('') | length > 0
-          - wireguard_peers | map(attribute='public_key') | list | unique | length == wireguard_peers | length
-          - wireguard_peers | map(attribute='allowed_ips.' ~ inventory_hostname) | list | unique | length == wireguard_peers | length
-        fail_msg: WireGuard peer public key 또는 gateway별 tunnel IP가 없거나 중복됩니다.
-      loop: "{{ wireguard_peers }}"
-      loop_control:
-        label: "{{ item.name | default('unnamed') }}"
-      no_log: true
-
-    - name: WireGuard 클라이언트 profile key와 tunnel IP 확인
-      ansible.builtin.assert:
-        that:
-          - wireguard_client_profiles | default([]) | length == wireguard_peers | length
-          - wireguard_client_profiles | map(attribute='name') | list | sort == wireguard_peers | map(attribute='name') | list | sort
-          - wireguard_client_profiles | map(attribute='name') | list | unique | length == wireguard_client_profiles | length
-          - item.name | default('') | length > 0
-          - item.private_key | default('') | length > 0
-          - item.private_key is match('^[A-Za-z0-9+/]{43}=$')
-          - item.allowed_ips is mapping
-          - groups['management_gateways'] | sort | map('extract', item.allowed_ips) | list | unique | length == 2
-          - item.interface_names is mapping
-          - groups['management_gateways'] | sort | map('extract', item.interface_names) | list | unique | length == 2
-          - item.interface_names['k3s-01'] is match('^[A-Za-z0-9_=+.-]{1,15}$')
-          - item.interface_names['k3s-02'] is match('^[A-Za-z0-9_=+.-]{1,15}$')
-        fail_msg: >-
-          WireGuard client key, tunnel IP, 또는 15자 이하 interface name이 없거나 중복됩니다.
-      loop: "{{ wireguard_client_profiles | default([]) }}"
-      loop_control:
-        label: "{{ item.name | default('unnamed') }}"
-      delegate_to: localhost
-      become: false
-      run_once: true
-      no_log: true
-
-    - name: WireGuard 패키지 설치
-      ansible.builtin.apt:
-        name:
-          - wireguard
-          - iptables
-        state: present
-        update_cache: true
-
-    - name: IPv4 forwarding 설정 배포
+    - name: Bootstrap key를 원격 tmpfs에 임시 배치
       ansible.builtin.copy:
-        dest: /etc/sysctl.d/99-aligner-wireguard.conf
-        content: "net.ipv4.ip_forward = 1\n"
-        owner: root
-        group: root
-        mode: "0644"
-      notify: Sysctl 설정 다시 읽기
-
-    - name: WireGuard 설정 디렉터리 생성
-      ansible.builtin.file:
-        path: /etc/wireguard
-        state: directory
-        owner: root
-        group: root
-        mode: "0700"
-
-    - name: WireGuard gateway 설정 배포
-      ansible.builtin.template:
-        src: wg0.conf.j2
-        dest: "/etc/wireguard/{{ wireguard_interface }}.conf"
+        src: "{{ management_network_tailscale_auth_key_file }}"
+        dest: "{{ management_network_tailscale_remote_auth_key_file }}"
         owner: root
         group: root
         mode: "0600"
       no_log: true
-      notify: WireGuard 재시작
 
-    - name: WireGuard gateway 활성화
-      ansible.builtin.systemd_service:
-        name: "wg-quick@{{ wireguard_interface }}"
-        enabled: true
-        state: started
-
-    - name: WireGuard 클라이언트 프로필 디렉터리 생성
-      ansible.builtin.file:
-        path: "{{ wireguard_client_profiles_dir }}"
-        state: directory
-        mode: "0700"
-      delegate_to: localhost
-      become: false
-      run_once: true
-
-    - name: WireGuard primary와 secondary 클라이언트 프로필 생성
-      ansible.builtin.template:
-        src: wg-client.conf.j2
-        dest: "{{ wireguard_client_profiles_dir }}/{{ item.0.interface_names[item.1] }}.conf"
-        mode: "0600"
-      vars:
-        wireguard_client_peer: "{{ item.0 }}"
-        wireguard_client_gateway: "{{ item.1 }}"
-      loop: "{{ wireguard_client_profiles | product(groups['management_gateways'] | sort) | list }}"
-      loop_control:
-        label: "{{ item.0.interface_names[item.1] }}"
-      delegate_to: localhost
-      become: false
-      run_once: true
-      no_log: true
-
-    - name: WireGuard runtime 상태 확인
+    - name: 서버를 Tailscale tailnet에 등록
       ansible.builtin.command:
         argv:
-          - wg
-          - show
-          - "{{ wireguard_interface }}"
-      changed_when: false
-      when: wireguard_runtime_validate | default(false) | bool
+          - tailscale
+          - up
+          - "--auth-key=file:{{ management_network_tailscale_remote_auth_key_file }}"
+          - "--hostname={{ inventory_hostname }}"
+          - "--advertise-tags={{ management_network_tailscale_server_tag }}"
+          - --accept-routes=false
+          - --accept-dns=false
       no_log: true
+      changed_when: true
+
+  always:
+    - name: 원격 bootstrap key 즉시 제거
+      ansible.builtin.file:
+        path: "{{ management_network_tailscale_remote_auth_key_file }}"
+        state: absent
+      no_log: true
+
+- name: Tailscale 서버 설정 고정
+  ansible.builtin.command:
+    argv:
+      - tailscale
+      - set
+      - "--hostname={{ inventory_hostname }}"
+      - --accept-routes=false
+      - --accept-dns=false
+      - --ssh=false
+      - --auto-update=false
+  changed_when: false
+
+- name: Tailscale 최종 상태 확인
+  ansible.builtin.command:
+    argv: [tailscale, status, --json]
+  register: management_network_tailscale_status_after
+  changed_when: false
+
+- name: Tagged Tailscale 관리 경로 검증
+  ansible.builtin.assert:
+    that:
+      - (management_network_tailscale_status_after.stdout | from_json).BackendState == 'Running'
+      - (management_network_tailscale_status_after.stdout | from_json).Self.HostName == inventory_hostname
+      - management_network_tailscale_server_tag in (management_network_tailscale_status_after.stdout | from_json).Self.Tags
+    fail_msg: Tailscale did not establish the expected tagged management identity.
+
+- name: Legacy WireGuard service 확인
+  ansible.builtin.service_facts:
+  when: management_network_remove_legacy_wireguard | bool
+
+- name: Legacy WireGuard 설정 범위 확인
+  ansible.builtin.find:
+    paths: /etc/wireguard
+    recurse: true
+    file_type: any
+    hidden: true
+  register: management_network_legacy_wireguard_paths
+  when: management_network_remove_legacy_wireguard | bool
+
+- name: Legacy WireGuard 제거 별도 승인과 소유 범위 확인
+  ansible.builtin.assert:
+    that:
+      - management_network_legacy_wireguard_removal_approved | bool
+      - >-
+        management_network_legacy_wireguard_paths.files
+        | map(attribute='path') | map('basename')
+        | difference(['wg0.conf']) | length == 0
+    fail_msg: >-
+      Legacy removal requires a separate approval and refuses unknown content
+      below /etc/wireguard.
+  when: management_network_remove_legacy_wireguard | bool
+
+- name: Legacy WireGuard service 중지와 비활성화
+  ansible.builtin.systemd_service:
+    name: wg-quick@wg0
+    enabled: false
+    state: stopped
+  when:
+    - management_network_remove_legacy_wireguard | bool
+    - management_network_legacy_wireguard_removal_approved | bool
+    - "'wg-quick@wg0.service' in ansible_facts.services"
+
+- name: Legacy WireGuard 설정과 개인키 제거
+  ansible.builtin.file:
+    path: /etc/wireguard
+    state: absent
+  when:
+    - management_network_remove_legacy_wireguard | bool
+    - management_network_legacy_wireguard_removal_approved | bool
+
+- name: Legacy WireGuard 관리 패키지 제거
+  ansible.builtin.apt:
+    name:
+      - wireguard
+      - wireguard-tools
+    state: absent
+    purge: true
+  when:
+    - management_network_remove_legacy_wireguard | bool
+    - management_network_legacy_wireguard_removal_approved | bool
+
+- name: WireGuard 제거 후 Tailscale 상태 재확인
+  ansible.builtin.command:
+    argv: [tailscale, status, --json]
+  register: management_network_tailscale_status_after_wireguard
+  changed_when: false
+  when:
+    - management_network_remove_legacy_wireguard | bool
+    - management_network_legacy_wireguard_removal_approved | bool
+
+- name: 관리망 전환 완료 확인
+  ansible.builtin.assert:
+    that:
+      - (management_network_tailscale_status_after_wireguard.stdout | from_json).BackendState == 'Running'
+  when:
+    - management_network_remove_legacy_wireguard | bool
+    - management_network_legacy_wireguard_removal_approved | bool

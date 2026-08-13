@@ -14,8 +14,8 @@ gabiactl apply     -f desired-infrastructure.yaml
 gabiactl status    -f desired-infrastructure.yaml
 gabiactl inventory -f desired-infrastructure.yaml -o .runtime/inventory.yaml
 gabiactl destroy   -f desired-infrastructure.yaml --confirm <environment>
-gabiactl access open  -f desired-infrastructure.yaml --cidr <current-ip>/32 --targets k3s-01,k3s-02
-gabiactl access close -f desired-infrastructure.yaml --targets k3s-01,k3s-02
+gabiactl access open  -f desired-infrastructure.yaml --cidr <current-ip>/32 --targets k3s-01,k3s-02,k3s-03
+gabiactl access close -f desired-infrastructure.yaml --targets k3s-01,k3s-02,k3s-03
 ```
 
 ## 필수 동작
@@ -27,8 +27,8 @@ gabiactl access close -f desired-infrastructure.yaml --targets k3s-01,k3s-02
   검증 전에는 운영 자동화에 구현하지 않는다.
 - credential과 session header를 로그에 출력하지 않는다.
 - 생성 ID는 `.runtime/gabiactl-state.json`, Ansible 입력은 `.runtime/inventory.yaml`에 기록한다.
-- `inventory --connect-via public|private`로 최초 WireGuard 부트스트랩과 정상 운영 경로를 구분한다.
-- `access open/close`는 WireGuard 최초 설치와 break-glass의 임시 `/32` SSH 규칙만 관리한다.
+- `inventory --connect-via public|private`로 최초 Tailscale 부트스트랩과 정상 운영 경로를 구분한다.
+- `access open/close`는 Tailscale 최초 설치와 break-glass의 임시 `/32` SSH 규칙만 관리한다.
 - `destroy`는 요약과 환경명 확인 후 의존성 역순으로 실행한다.
 
 ## 범위 밖

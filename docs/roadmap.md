@@ -35,17 +35,17 @@
 ## 1주차 — L1과 관리 경로
 
 1. `gabiactl apply`로 VPC, Subnet, Router, SG, VM 3대, Volume, Public IP, External LB를 생성한다.
-2. 운영자 현재 `/32` SSH를 k3s-01·02에 임시 허용한다.
-3. public bootstrap inventory로 WireGuard gateway 두 대만 배포한다.
-4. 서로 다른 외부 네트워크에서 두 gateway 접속을 확인한다.
-5. private inventory를 생성하고 임시 SSH 규칙을 닫는다.
-6. 사설 관리망을 통해 Data-A/B와 나머지 L2를 구성한다.
+2. 운영자 현재 `/32` SSH를 k3s-01·02·03에 임시 허용한다.
+3. public bootstrap inventory로 Tailscale agent를 세 대에 배포한다.
+4. MagicDNS로 세 노드의 SSH 접속을 확인한다.
+5. Tailscale inventory로 전환하고 임시 SSH 규칙을 닫는다.
+6. Tailscale 관리망을 통해 Data-A/B와 나머지 L2를 구성한다.
 7. break-glass를 실제 사용하고 공인망 22/6443 차단을 확인한다.
 
 ### DoD
 
 - `gabiactl status`가 필수 리소스와 연결 관계 일치를 보고
-- primary/secondary WireGuard에서 세 노드 사설 IP SSH 성공
+- Tailscale에서 세 노드 MagicDNS SSH 성공
 - 공인망에서 22/6443 연결 실패
 - break-glass로 k3s-03 접속 후 원상 복구 성공
 
@@ -112,12 +112,12 @@ Gate 실패 시 프로덕션 데이터 투입 전에 Flannel로 클러스터를 
 - 월 1회: 백업 최신 시각, S3 체크섬, credential 만료 확인
 - 분기 1회: PostgreSQL PITR 또는 etcd 복구를 번갈아 수행
 - K3s/Cilium 업그레이드 전: snapshot과 rollback 경로 확인 후 한 노드씩 적용
-- 팀원·장비 변경 시: WireGuard peer와 credential 회전
+- 팀원·장비 변경 시: Tailscale 사용자·device 폐기
 
 ## 9개월차 — 전체 재구축과 종료 결정
 
 1. `gabiactl apply`로 별도 L1 환경을 재현한다.
-2. Ansible로 WireGuard, K3s, Cilium을 구성한다.
+2. Ansible로 Tailscale, K3s, Cilium을 구성한다.
 3. Argo CD root application으로 플랫폼과 앱을 복원한다.
 4. R2에서 PostgreSQL과 etcd를 복구한다.
 5. External LB, DNS, TLS 경로를 검증한다.

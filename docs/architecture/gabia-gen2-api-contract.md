@@ -51,7 +51,7 @@ Server와 Volume 연결은 `POST /servers/{serverId}/volumes/{volumeId}`, 해제
 
 Security Group 규칙 수정은 실제 운영 적용에서 `PUT /securitygroups/{id}`에 `rules`만
 보내는 계약을 확인했다. 기존 `name`과 `description`을 함께 보내면 동일 이름 충돌로 `409`가
-발생한다. 임시 SSH `/32` 규칙 제거 후 나머지 규칙 수와 WireGuard SSH를 다시 검증했다.
+발생한다. 임시 SSH `/32` 규칙 제거 후 나머지 규칙 수와 Tailscale SSH를 다시 검증했다.
 
 ## Server 생성 계약
 

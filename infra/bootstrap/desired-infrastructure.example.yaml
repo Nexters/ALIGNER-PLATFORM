@@ -27,4 +27,4 @@ load_balancer:
   listeners:
     - { port: 443, protocol: HTTPS, target_port: 30443 }
     - { port: 80, protocol: HTTP, target_port: 30080 }
-    # 6443 리스너는 만들지 않는다 — WireGuard 관리망으로만 접근한다
+    # 6443 리스너는 만들지 않는다 — Tailscale 관리망으로만 접근한다

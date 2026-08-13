@@ -10,18 +10,15 @@
     management_exposure_stage: ""
     management_exposure_evidence_ref: ""
     management_exposure_desired_rules_verified: false
-    management_exposure_wg_ssh_checks: []
+    management_exposure_tailscale_ssh_checks: []
     management_exposure_public_negative_checks: []
     management_exposure_break_glass_evidence_ref: ""
     management_exposure_cleanup_evidence_ref: ""
-    management_exposure_wg_api_checks: []
-    management_exposure_expected_wg_ssh_checks:
-      - primary-k3s-01
-      - primary-k3s-02
-      - primary-k3s-03
-      - secondary-k3s-01
-      - secondary-k3s-02
-      - secondary-k3s-03
+    management_exposure_tailscale_api_checks: []
+    management_exposure_expected_tailscale_checks:
+      - tailscale-k3s-01
+      - tailscale-k3s-02
+      - tailscale-k3s-03
     management_exposure_expected_public_negative_checks:
       - public-tcp-22
       - public-tcp-5432
@@ -35,9 +32,9 @@
           - management_exposure_runtime_approved | bool
           - management_exposure_stage in ['pre-lockdown', 'post-lockdown-pre-k3s', 'post-k3s']
           - management_exposure_evidence_ref | length > 0
-          - management_exposure_wg_ssh_checks | length == 6
-          - management_exposure_wg_ssh_checks | selectattr('host', 'defined') | list | length == 6
-          - management_exposure_wg_ssh_checks | map(attribute='name') | list | sort == management_exposure_expected_wg_ssh_checks
+          - management_exposure_tailscale_ssh_checks | length == 3
+          - management_exposure_tailscale_ssh_checks | selectattr('host', 'defined') | list | length == 3
+          - management_exposure_tailscale_ssh_checks | map(attribute='name') | list | sort == management_exposure_expected_tailscale_checks
           - >-
             management_exposure_stage != 'pre-lockdown' or
             management_exposure_desired_rules_verified | bool
@@ -52,15 +49,15 @@
             management_exposure_public_negative_checks | map(attribute='name') | list | sort == management_exposure_expected_public_negative_checks)
           - >-
             management_exposure_stage != 'post-k3s' or
-            (management_exposure_wg_api_checks | length == 6 and
-            management_exposure_wg_api_checks | selectattr('url', 'defined') | list | length == 6 and
-            management_exposure_wg_api_checks | map(attribute='name') | list | sort == management_exposure_expected_wg_ssh_checks)
+            (management_exposure_tailscale_api_checks | length == 3 and
+            management_exposure_tailscale_api_checks | selectattr('url', 'defined') | list | length == 3 and
+            management_exposure_tailscale_api_checks | map(attribute='name') | list | sort == management_exposure_expected_tailscale_checks)
         fail_msg: >-
           Management exposure verification is intentionally not run. Supply an explicit
           stage, evidence reference, and every required read-only check in an untracked
           vars file. No verification command has been executed.
 
-    - name: Verify both WireGuard profiles reach every node over SSH
+    - name: Verify Tailscale reaches every node over SSH
       ansible.builtin.wait_for:
         host: "{{ item.host }}"
         port: 22
@@ -69,9 +66,9 @@
         timeout: 10
       changed_when: false
       no_log: true
-      loop: "{{ management_exposure_wg_ssh_checks }}"
+      loop: "{{ management_exposure_tailscale_ssh_checks }}"
       loop_control:
-        label: "wireguard-ssh-check"
+        label: "tailscale-ssh-check"
 
     - name: Verify public management and data ports are unavailable
       ansible.builtin.wait_for:
@@ -87,7 +84,7 @@
         label: "public-negative-check"
       when: management_exposure_stage != 'pre-lockdown'
 
-    - name: Verify WireGuard Kubernetes API access after K3s installation
+    - name: Verify Tailscale Kubernetes API access after K3s installation
       ansible.builtin.uri:
         url: "{{ item.url }}"
         method: GET
@@ -95,7 +92,7 @@
         status_code: 200
       changed_when: false
       no_log: true
-      loop: "{{ management_exposure_wg_api_checks }}"
+      loop: "{{ management_exposure_tailscale_api_checks }}"
       loop_control:
-        label: "wireguard-api-check"
+        label: "tailscale-api-check"
       when: management_exposure_stage == 'post-k3s'
