@@ -1,5 +1,5 @@
-# gabiactl 목표 상태 정의. 실제 값(리전, 이미지 ID 등)은 Phase 0 endpoint matrix
-# 확정 후 채운다. 이 파일은 정본이지만 실제 인증정보는 포함하지 않는다.
+# gabiactl 목표 상태 정의. 이 파일은 예시이며 실제 인증정보는 포함하지 않는다.
+# `servers.os_image`가 null이면 image ID Gate가 닫힌 상태이므로 apply하지 않는다.
 #
 # 실행: infisical run --projectId=$ALIGNER_INFRA --env=prod --path=/gabia -- \
 #         gabiactl apply --file infra/bootstrap/desired-infrastructure.yaml
@@ -8,11 +8,13 @@ version: "v1"
 environment: "prod"
 
 network:
-  vpc_cidr: "REPLACE_ME"
-  subnet_cidr: "REPLACE_ME"
+  vpc_cidr: "10.20.0.0/16"   # Gen2 UI에서 검증한 RFC1918 범위
+  subnet_cidr: "10.20.0.0/24" # Gen2 UI에서 검증한 /24 subnet
 
 servers:
-  os_image: "Ubuntu-24.04"   # 검증한 실제 image ID로 고정한다
+  # STOP: apply 전 대상 프로젝트에서 Ubuntu 24.04 image ID를 조회해 정확히 하나인지 확인한다.
+  # image ID는 프로젝트/콘솔 상태에 따라 달라질 수 있으므로 이름이나 추측값을 넣지 않는다.
+  os_image: null
   flavor: "standard-2-8"     # 2 vCPU / 8GB
   count: 3
   names: ["k3s-01", "k3s-02", "k3s-03"]
