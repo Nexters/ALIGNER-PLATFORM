@@ -29,9 +29,11 @@ make collections
 
 ```bash
 gabiactl validate -f infra/bootstrap/desired-infrastructure.yaml
-gabiactl apply -f infra/bootstrap/desired-infrastructure.yaml
-ALIGNER_BOOTSTRAP_CIDR=<current-ip>/32 make bootstrap-access bootstrap-inventory bootstrap-management
-make inventory lockdown site verify
+gabiactl plan -f infra/bootstrap/desired-infrastructure.yaml
 ```
+
+`gabiactl apply`는 가비아 sandbox에서 create/read/retry/delete 계약과 Ubuntu 24.04 image ID를
+확정하기 전까지 의도적으로 중단된다. Gate를 통과한 뒤에만 [로드맵](docs/roadmap.md)의 L1
+순서로 인프라를 만들고, Tailscale 관리망과 L2/L3를 구성한다.
 
 실제 credential, IP, state, inventory, kubeconfig는 커밋하지 않는다. 상세 기준은 [SECURITY.md](SECURITY.md)를 따른다.

@@ -1,0 +1,49 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -race ./...
+      - run: go vet ./...
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install kubectl
+        env:
+          KUBECTL_VERSION: v1.36.1
+          KUBECTL_SHA256: 629d3f410e09bf49b64ae7079f7f0bda1191efed311f7d37fdbab0ad5b0ec2b7
+        run: |
+          curl --fail --location --silent --show-error \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
+            --output /tmp/kubectl
+          echo "${KUBECTL_SHA256}  /tmp/kubectl" | sha256sum --check
+          install -m 0755 /tmp/kubectl "$RUNNER_TEMP/kubectl"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Run infrastructure regression tests
+        run: |
+          make render
+          python3 ansible/playbooks/scripts/test_verify_cilium_capacity.py
+          make test-verify
+          make test-etcd-recovery
+          make test-k3s-cilium-upgrade
+          make test-full-rebuild
+          make test-postgresql-pitr
+          make test-failover-drill
+          python3 ansible/roles/firewall/tests/test_tailscale_contract.py
+          python3 ansible/roles/management_network/tests/test_tailscale_contract.py

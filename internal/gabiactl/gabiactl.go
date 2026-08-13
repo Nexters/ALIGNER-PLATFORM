@@ -184,6 +184,9 @@ func loadDesired(args []string) (Desired, error) {
 	if err := fs.Parse(args); err != nil {
 		return Desired{}, err
 	}
+	if len(fs.Args()) != 0 {
+		return Desired{}, fmt.Errorf("unexpected positional arguments: %s", strings.Join(fs.Args(), " "))
+	}
 	if *file == "" {
 		return Desired{}, errors.New("-f is required")
 	}
@@ -196,6 +199,9 @@ func loadDesired(args []string) (Desired, error) {
 	var desired Desired
 	if err := decoder.Decode(&desired); err != nil {
 		return Desired{}, fmt.Errorf("decode desired infrastructure: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return Desired{}, errors.New("desired infrastructure must contain one YAML document")
 	}
 	return desired, nil
 }
@@ -312,8 +318,15 @@ func status(d Desired, out io.Writer) error {
 		}
 		verified++
 	}
-	_, err = fmt.Fprintf(out, "remote status: %d resources present; %d resource kinds remain read-contract-gated\n", verified, unavailable)
+	_, err = fmt.Fprintf(out, "remote status: %d recorded %s present; %d recorded %s remain read-contract-gated\n", verified, resourceNoun(verified), unavailable, resourceNoun(unavailable))
 	return err
+}
+
+func resourceNoun(count int) string {
+	if count == 1 {
+		return "resource"
+	}
+	return "resources"
 }
 
 func inventory(args []string, out io.Writer) error {

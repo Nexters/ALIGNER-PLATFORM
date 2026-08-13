@@ -57,6 +57,11 @@ class FullRebuildResultTest(unittest.TestCase):
         result["shutdown"]["billing_zero_evidence"]["residual_billable_resources"] = 1
         self.assertIn("shutdown.billing_zero_evidence must prove zero Gabia console/billing resources", MODULE.validate(result))
 
+    def test_rejects_nested_secret_like_field(self):
+        result = passing_result()
+        result["shutdown"]["token_value"] = "redacted"
+        self.assertIn("secret-like field is forbidden: token_value", MODULE.validate(result))
+
 
 if __name__ == "__main__":
     unittest.main()

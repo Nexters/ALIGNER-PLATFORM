@@ -1,4 +1,4 @@
-# 0007. CNPG local-path와 외부 백업
+# 0008. CNPG local-path와 외부 백업
 
 ## 상태
 

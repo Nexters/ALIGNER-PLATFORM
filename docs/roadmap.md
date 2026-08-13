@@ -34,7 +34,7 @@
 
 ## 1주차 — L1과 관리 경로
 
-1. `gabiactl apply`로 VPC, Subnet, Router, SG, VM 3대, Volume, Public IP, External LB를 생성한다.
+1. Phase 0의 API Gate를 통과한 `gabiactl apply`로 VPC, Subnet, Router, SG, VM 3대, Volume, Public IP, External LB를 생성한다.
 2. 운영자 현재 `/32` SSH를 k3s-01·02·03에 임시 허용한다.
 3. public bootstrap inventory로 Tailscale agent를 세 대에 배포한다.
 4. MagicDNS로 세 노드의 SSH 접속을 확인한다.

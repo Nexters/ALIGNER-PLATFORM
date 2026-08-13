@@ -1,74 +1,42 @@
 package gabiactl
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func TestReadStateMigratesNestedServersAtomically(t *testing.T) {
+func TestDecodeStateRejectsUnsupportedStateShapes(t *testing.T) {
+	for name, state := range map[string]string{
+		"nested servers":       `{"environment":"sandbox","servers":{},"resources":{"servers":{"k3s-01":{"id":"server-1"}}}}`,
+		"routing table alias":  `{"environment":"sandbox","servers":{},"resources":{"routing_table":{"id":"router-1"}}}`,
+		"security group alias": `{"environment":"sandbox","servers":{},"resources":{"security_group":{"id":"security-group-1"}}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := decodeState([]byte(state)); err == nil || !strings.Contains(err.Error(), "not supported") {
+				t.Fatalf("unsupported state error = %v", err)
+			}
+		})
+	}
+}
+
+func TestReadStateRejectsUnsupportedStateWithoutRewritingIt(t *testing.T) {
 	chdir(t)
 	if err := os.Mkdir(".runtime", 0750); err != nil {
 		t.Fatal(err)
 	}
-	legacy := `{"environment":"sandbox","servers":{},"resources":{"routing_table":{"id":"router-1"},"security_group":{"id":"security-group-1"},"servers":{"k3s-01":{"id":"server-1","public_ip":"203.0.113.10","private_ip":"10.20.0.10"}}}}`
-	if err := os.WriteFile(stateFile, []byte(legacy), stateFileMode); err != nil {
+	unsupported := []byte(`{"environment":"sandbox","servers":{},"resources":{"routing_table":{"id":"router-1"}}}`)
+	if err := os.WriteFile(stateFile, unsupported, stateFileMode); err != nil {
 		t.Fatal(err)
 	}
-	state, err := readStateForServers("sandbox", []string{"k3s-01"})
-	if err != nil {
-		t.Fatal(err)
+	if _, err := readStateForServers("sandbox", []string{"k3s-01"}); err == nil || !strings.Contains(err.Error(), "not supported") {
+		t.Fatalf("unsupported state error = %v", err)
 	}
-	if state.Resources["router"].ID != "router-1" || state.Resources["security-group"].ID != "security-group-1" || state.Resources["server/k3s-01"].PrivateIP != "10.20.0.10" {
-		t.Fatalf("legacy resources were not normalized")
-	}
-	b, err := os.ReadFile(stateFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(b), `"resources":{"servers"`) || !strings.Contains(string(b), `"servers"`) {
-		t.Fatalf("legacy state was not rewritten to canonical schema")
-	}
-	info, err := os.Lstat(stateFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode().Perm() != stateFileMode || !info.Mode().IsRegular() {
-		t.Fatalf("state mode = %o, regular = %t", info.Mode().Perm(), info.Mode().IsRegular())
-	}
-}
-
-func TestDecodeStateRejectsConflictingTopLevelAndLegacyServers(t *testing.T) {
-	_, _, err := decodeState([]byte(`{"environment":"sandbox","servers":{"k3s-01":{"id":"server-1"}},"resources":{"servers":{"k3s-01":{"id":"server-2"}}}}`))
-	if err == nil || !strings.Contains(err.Error(), "conflict") {
-		t.Fatalf("conflicting servers error = %v", err)
-	}
-}
-
-func TestDecodeStateAcceptsMatchingTopLevelAndLegacyServers(t *testing.T) {
-	state, migrated, err := decodeState([]byte(`{"environment":"sandbox","servers":{"k3s-01":{"id":"server-1"}},"resources":{"servers":{"k3s-01":{"id":"server-1"}}}}`))
-	if err != nil || !migrated || state.Servers["k3s-01"].ID != "server-1" {
-		t.Fatalf("matching servers state = %#v, migrated = %t, err = %v", state, migrated, err)
-	}
-}
-
-func TestDecodeStateRejectsConflictingResourceAliases(t *testing.T) {
-	for _, resources := range []string{
-		`"routing_table":{"id":"router-old"},"router":{"id":"router-new"}`,
-		`"security_group":{"id":"sg-old"},"security-group":{"id":"sg-new"}`,
-	} {
-		_, _, err := decodeState([]byte(`{"environment":"sandbox","servers":{},"resources":{` + resources + `}}`))
-		if err == nil || !strings.Contains(err.Error(), "conflict") {
-			t.Fatalf("alias conflict error = %v", err)
-		}
-	}
-}
-
-func TestDecodeStateAcceptsMatchingResourceAliases(t *testing.T) {
-	state, migrated, err := decodeState([]byte(`{"environment":"sandbox","servers":{},"resources":{"routing_table":{"id":"router-1"},"router":{"id":"router-1"}}}`))
-	if err != nil || !migrated || state.Resources["router"].ID != "router-1" {
-		t.Fatalf("matching aliases state = %#v, migrated = %t, err = %v", state, migrated, err)
+	after, err := os.ReadFile(stateFile)
+	if err != nil || !bytes.Equal(after, unsupported) {
+		t.Fatalf("unsupported state changed: %q, %v", after, err)
 	}
 }
 
@@ -137,7 +105,7 @@ func TestReadStateRejectsWritableParent(t *testing.T) {
 	if err := os.Chmod(".runtime", 0777); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := readStateForServers("sandbox", []string{"k3s-01"}); err == nil || !strings.Contains(err.Error(), "group or world writable") {
+	if _, err := readStateForServers("sandbox", []string{"k3s-01"}); err == nil || !strings.Contains(err.Error(), "owner-controlled") {
 		t.Fatalf("writable parent error = %v", err)
 	}
 }

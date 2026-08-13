@@ -47,6 +47,11 @@ class EtcdRecoveryResultTest(unittest.TestCase):
         result["cleanup"]["recovery_environment_deleted"] = False
         self.assertIn("cleanup must prove the recovery environment and temporary credentials were removed", MODULE.validate(result))
 
+    def test_rejects_nested_secret_like_field(self):
+        result = passing_result()
+        result["snapshot"]["access_key"] = "redacted"
+        self.assertIn("secret-like field is forbidden: access_key", MODULE.validate(result))
+
 
 if __name__ == "__main__":
     unittest.main()

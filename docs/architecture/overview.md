@@ -58,7 +58,9 @@ Backup
 | Data-A | 노드당 25GB, `/mnt/k3s` |
 | Data-B | 노드당 40GB, `/mnt/aligner` |
 
-가비아가 VM당 복수 데이터 볼륨을 지원하면 Data-A와 Data-B를 분리한다. 지원하지 않으면 단일 65GB 볼륨에 두 디렉터리를 두고 사용량 경보를 적용한다. 단일 볼륨 fallback에 LVM을 추가하지 않는다.
+Data-A와 Data-B 두 개의 독립 볼륨은 현재 storage role의 필수 계약이다. 가비아 sandbox에서
+VM당 데이터 볼륨 두 개의 attach·재조회·detach가 확인되지 않으면 인프라 생성을 중단한다.
+검증되지 않은 단일 볼륨 경로로 자동 전환하지 않는다.
 
 필수 워크로드의 request 합계는 한 노드 장애 후 남은 두 노드 allocatable의 85% 이하여야 한다. 계산표가 아니라 실제 VM 한 대를 정지해 필수 Pod `Pending` 0을 확인해야 한다.
 
@@ -89,7 +91,7 @@ Backup
 - Cilium은 Day 1에 설치하고 K3s 기본 Flannel과 내장 NetworkPolicy controller를 끈다.
 - `kubeProxyReplacement: false`로 kube-proxy를 유지한다.
 - 표준 `NetworkPolicy`를 기본으로 사용한다.
-- Cilium L7/FQDN 정책, WireGuard 노드 암호화, Hubble Relay/UI는 도입하지 않는다.
+- Cilium L7/FQDN 정책, 노드 투명 암호화, Hubble Relay/UI는 도입하지 않는다.
 - DNS/drop/policy 메트릭만 필요한 범위에서 활성화한다.
 - 프로덕션 데이터 투입 전 connectivity, 정책, 노드 장애, 자원 Gate를 통과하지 못하면 Flannel로 재생성한다. 운영 중 CNI를 교체하지 않는다.
 

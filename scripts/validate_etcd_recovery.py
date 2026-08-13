@@ -8,7 +8,22 @@ import sys
 
 
 ALLOWED_STATUS = {"NOT_EXECUTED", "PASS", "FAIL"}
-FORBIDDEN_FIELD = re.compile(r"(authorization|credential|password|access[_-]?key|private[_-]?key|secret.*(?:value|data|content)|token.*(?:value|data|content))", re.I)
+FORBIDDEN_FIELD = re.compile(
+    r"(authorization|credential|password|access[_-]?(?:key|token)|private[_-]?key|"
+    r"secret.*(?:key|value|data|content)|token.*(?:value|data|content))",
+    re.I,
+)
+
+
+def secret_like_keys(value):
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if isinstance(key, str) and FORBIDDEN_FIELD.search(key):
+                yield key
+            yield from secret_like_keys(nested)
+    elif isinstance(value, list):
+        for nested in value:
+            yield from secret_like_keys(nested)
 
 
 def is_non_negative_number(value):
@@ -90,9 +105,8 @@ def validate(result):
     cleanup_fields = {"recovery_environment_deleted", "temporary_credentials_revoked"}
     if not isinstance(cleanup, dict) or any(cleanup.get(field) is not True for field in cleanup_fields):
         errors.append("cleanup must prove the recovery environment and temporary credentials were removed")
-    for key in result:
-        if FORBIDDEN_FIELD.search(key):
-            errors.append("secret-like field is forbidden: " + key)
+    for key in secret_like_keys(result):
+        errors.append("secret-like field is forbidden: " + key)
 
     if result.get("status") == "PASS":
         for field in ("api_ready_after_first", "gitops_reconciled", "user_request_succeeded"):

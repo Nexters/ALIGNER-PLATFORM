@@ -10,7 +10,22 @@ import sys
 ALLOWED_STATUS = {"NOT_EXECUTED", "PASS", "FAIL"}
 PHASES = ("l1_gabiactl", "l2_tailscale_ansible_k3s_cilium", "l3_argo_root")
 SHUTDOWN_ORDER = ["apps", "platform", "cluster", "load_balancer", "servers", "network"]
-FORBIDDEN_FIELD = re.compile(r"(authorization|credential|password|access[_-]?key|private[_-]?key|secret.*(?:value|data|content)|token.*(?:value|data|content))", re.I)
+FORBIDDEN_FIELD = re.compile(
+    r"(authorization|credential|password|access[_-]?(?:key|token)|private[_-]?key|"
+    r"secret.*(?:key|value|data|content)|token.*(?:value|data|content))",
+    re.I,
+)
+
+
+def secret_like_keys(value):
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if isinstance(key, str) and FORBIDDEN_FIELD.search(key):
+                yield key
+            yield from secret_like_keys(nested)
+    elif isinstance(value, list):
+        for nested in value:
+            yield from secret_like_keys(nested)
 
 
 def non_negative_number(value):
@@ -108,9 +123,8 @@ def validate(result):
         if not isinstance(billing, dict) or set(billing) != billing_fields or billing.get("gabia_console") is not True or billing.get("gabia_billing") is not True or billing.get("residual_billable_resources") != 0:
             errors.append("shutdown.billing_zero_evidence must prove zero Gabia console/billing resources")
 
-    for key in result:
-        if FORBIDDEN_FIELD.search(key):
-            errors.append("secret-like field is forbidden: " + key)
+    for key in secret_like_keys(result):
+        errors.append("secret-like field is forbidden: " + key)
     if result.get("status") == "PASS" and errors:
         errors.append("PASS requires every phase, restore checksum, public validation, shutdown cleanup, and zero-billing record")
     return errors
