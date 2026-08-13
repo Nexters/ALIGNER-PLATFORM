@@ -8,3 +8,55 @@
   ansible.builtin.command:
     argv: [kubectl, --kubeconfig, "{{ cilium_gate_kubeconfig }}", -n, kube-system, rollout, status, daemonset/cilium, --timeout=5m]
   changed_when: false
+
+- name: Wait for a new Ready Cilium agent on node {{ item.spec.nodeName }}
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ cilium_gate_kubeconfig }}"
+      - -n
+      - kube-system
+      - get
+      - pods
+      - -l
+      - k8s-app=cilium
+      - --field-selector
+      - "spec.nodeName={{ item.spec.nodeName }}"
+      - -o
+      - 'jsonpath={range .items[*]}{.metadata.uid}{" "}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}'
+  changed_when: false
+  register: cilium_replacement_agent
+  retries: 30
+  delay: 10
+  until:
+    - cilium_replacement_agent.stdout_lines | length == 1
+    - cilium_replacement_agent.stdout.split(' ') | first != item.metadata.uid
+    - cilium_replacement_agent.stdout.split(' ') | last == 'True'
+
+- name: Verify datapath recovery on node {{ item.spec.nodeName }}
+  block:
+    - name: Run post-restart connectivity test for {{ item.spec.nodeName }}
+      ansible.builtin.command:
+        argv:
+          - cilium
+          - connectivity
+          - test
+          - --kubeconfig
+          - "{{ cilium_gate_kubeconfig }}"
+          - --test-namespace
+          - "cilium-gate-restart-{{ item.spec.nodeName }}"
+      changed_when: false
+  always:
+    - name: Remove post-restart connectivity namespace for {{ item.spec.nodeName }}
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig
+          - "{{ cilium_gate_kubeconfig }}"
+          - delete
+          - namespace
+          - "cilium-gate-restart-{{ item.spec.nodeName }}"
+          - --ignore-not-found=true
+          - --wait=true
+      changed_when: false

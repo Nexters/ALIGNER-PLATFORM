@@ -26,6 +26,11 @@ PITR 성공 전에는 backup 구성을 완료로 처리하지 않는다.
 
 ## 배포 전 Gate
 
+`gitops/data`는 의도적으로 PostgreSQL subtree를 포함하지 않는다. 실제 R2 account endpoint로
+`object-store.yaml`의 placeholder를 런타임 렌더링하고 두 Secret의 존재를 확인한 뒤에만,
+별도 승인 PR에서 `postgresql`을 상위 kustomization에 연결한다. placeholder 상태의
+`gitops/data/postgresql`을 직접 apply하지 않는다.
+
 1. 세 노드 모두에서 `/mnt/aligner`가 Data-B UUID로 마운트되고
    `/usr/local/libexec/aligner-local-pv-data-b-guard`가 성공해야 한다.
 2. `local-path-storage/local-path-config`의
