@@ -1,0 +1,13 @@
+---
+# 기존 공인 /32 또는 WireGuard 경로를 유지한 채 한 노드씩 Tailscale과
+# 호스트 방화벽을 먼저 전환한다. Legacy WireGuard 제거는 별도 play다.
+- name: Tailscale 관리망과 방화벽 순차 전환
+  hosts: k3s_servers
+  become: true
+  gather_facts: true
+  serial: 1
+  vars:
+    management_network_remove_legacy_wireguard: false
+  roles:
+    - management_network
+    - firewall

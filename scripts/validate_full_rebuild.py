@@ -8,7 +8,7 @@ import sys
 
 
 ALLOWED_STATUS = {"NOT_EXECUTED", "PASS", "FAIL"}
-PHASES = ("l1_gabiactl", "l2_wireguard_ansible_k3s_cilium", "l3_argo_root")
+PHASES = ("l1_gabiactl", "l2_tailscale_ansible_k3s_cilium", "l3_argo_root")
 SHUTDOWN_ORDER = ["apps", "platform", "cluster", "load_balancer", "servers", "network"]
 FORBIDDEN_FIELD = re.compile(r"(authorization|credential|password|access[_-]?key|private[_-]?key|secret.*(?:value|data|content)|token.*(?:value|data|content))", re.I)
 
@@ -57,7 +57,7 @@ def validate(result):
 
     phases = result.get("phases")
     if not isinstance(phases, dict) or set(phases) != set(PHASES):
-        errors.append("phases must contain l1_gabiactl, l2_wireguard_ansible_k3s_cilium, and l3_argo_root")
+        errors.append("phases must contain l1_gabiactl, l2_tailscale_ansible_k3s_cilium, and l3_argo_root")
     elif any(phases.get(phase) is not True for phase in PHASES):
         errors.append("all rebuild phases must be completed")
 

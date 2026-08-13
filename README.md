@@ -4,7 +4,7 @@ ALIGNER의 가비아 gCloud 3노드 K3s 플랫폼 정본이다.
 
 ```text
 L1  gabiactl   가비아 인프라 생성과 Ansible inventory 출력
-L2  Ansible    Ubuntu, storage, WireGuard, firewall, K3s, Cilium
+L2  Ansible    Ubuntu, storage, Tailscale, firewall, K3s, Cilium
 L3  Argo CD    Traefik, Gateway API, cert-manager, ESO, CNPG, 앱
 ```
 

@@ -24,11 +24,9 @@ Gabia External LB
 Traefik ×3 ─ Gateway API HTTPRoute ─ ALIGNER API
 
 운영자 노트북 A/B
-  │ WireGuard UDP 51820
-  ├─ k3s-01 gateway
-  └─ k3s-02 gateway
-       │ Gabia VPC
-       └─ SSH 22 / Kubernetes API 6443
+  │ Tailscale + MagicDNS
+  └─ k3s-01/02/03 직접
+       └─ OpenSSH 22 / Kubernetes API 6443
 
 k3s-01 ─┬─ K3s server + worker + embedded etcd
 k3s-02 ─┼─ K3s server + worker + embedded etcd
@@ -76,12 +74,11 @@ Backup
 
 ### 관리 트래픽
 
-- Tailscale과 Headscale은 사용하지 않는다.
-- k3s-01과 k3s-02에 WireGuard gateway를 구성한다.
-- 자동 failover는 만들지 않는다. 운영자 노트북의 primary/secondary 프로필로 수동 전환한다.
+- Tailscale Personal의 `tag:aligner-prod`로 세 노드를 등록하고 MagicDNS로 직접 접근한다.
+- admin만 태그된 서버의 OpenSSH 22/TCP와 Kubernetes API 6443/TCP에 접근한다.
+- Tailscale SSH는 끄고 기존 SSH key를 사용한다.
 - 공인망에서 22, 6443, Argo CD UI, 5432, 6379를 차단한다.
-- UDP 51820은 k3s-01과 k3s-02에만 허용한다.
-- peer 키는 팀원 변경, 장비 분실, 노출 시에만 회전한다.
+- 운영자·장비·노드 변경 시 tailnet membership을 즉시 폐기한다.
 - break-glass 절차는 [관리 접근 Runbook](../runbooks/management-access.md)과 [비상 접근 Runbook](../runbooks/break-glass.md)을 따른다.
 
 ## 플랫폼 표준
@@ -130,7 +127,7 @@ L1  gabiactl
     Network, Subnet, Router, SG, VM, Volume, Public IP, LB
         ↓ .runtime/inventory.yaml
 L2  Ansible
-    OS, storage, WireGuard, firewall, K3s, Cilium bootstrap
+    OS, storage, Tailscale, firewall, K3s, Cilium bootstrap
         ↓ kubeconfig
 L3  Argo CD
     controller, config, database, application
@@ -138,14 +135,16 @@ L3  Argo CD
 
 `gabiactl`은 구축용 얇은 CLI다. Terraform Provider, 범용 SDK, import, remote state, 완전한 plan/replace 엔진을 만들지 않는다. 세부 계약은 [ADR 0005](../adr/0005-thin-gabiactl.md)를 따른다.
 
-최초에는 운영자 현재 IP의 `/32` SSH를 gateway 두 대에 임시 허용하고 public inventory로 WireGuard만 설치한다. WireGuard 검증 후 private inventory를 생성하고 임시 SSH 규칙을 닫은 다음 전체 L2를 실행한다. 이 순서를 바꾸어 최초 접속 경로를 잃지 않는다.
+최초에는 운영자 현재 IP의 `/32` SSH를 세 대에 임시 허용하고 public inventory로
+Tailscale을 설치한다. 세 노드의 MagicDNS SSH를 검증한 후 Tailscale inventory로 전환하고
+임시 SSH 규칙을 닫은 다음 전체 L2를 실행한다.
 
 ## 프로덕션 Gate
 
 다음을 모두 통과하기 전에는 실사용자 트래픽을 받지 않는다.
 
 - 3노드 Ready와 etcd 멤버 3개 확인
-- WireGuard primary/secondary 접속과 break-glass 실사용
+- Tailscale로 세 노드 SSH/API 접속과 break-glass 실사용
 - 공인망 22/6443 차단 확인
 - Cilium connectivity와 NetworkPolicy deny/allow 성공
 - VM 한 대 강제 정지 후 필수 Pod Pending 0과 서비스 회복

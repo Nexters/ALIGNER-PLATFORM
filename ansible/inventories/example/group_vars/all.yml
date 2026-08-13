@@ -28,45 +28,25 @@ application_data_dir: "/mnt/aligner"  # Data-B — PostgreSQL (Redis 는 emptyDi
 k3s_node_ips: >-
   {{ groups['k3s_servers'] | map('extract', hostvars, 'private_ip') | list }}
 
-# WireGuard 관리망. private key는 Infisical에서 런타임 주입한다.
-wireguard_port: 51820
-wireguard_interface: wg0
-wireguard_vpc_cidr: "10.20.0.0/16"
-wireguard_egress_interface: "{{ ansible_default_ipv4.interface }}"
-# false 기본값은 키를 생성하거나 대상 노드를 변경하지 않는 런타임 gate다.
-wireguard_runtime_approved: false
-wireguard_runtime_validate: false
-wireguard_client_profiles_dir: ""
-wireguard_peers: []
-# 예시:
-# wireguard_peers:
-#   - name: operator-a
-#     public_key: "runtime-injected-client-public-key"
-#     allowed_ips:
-#       k3s-01: "10.99.1.11/32"
-#       k3s-02: "10.99.2.11/32"
-# gateway에는 wireguard_peers의 public_key와 allowed_ips만 제공한다.
-# wireguard_client_profiles는 localhost에서만 렌더링한다. 동일한 peer name과
-# runtime-injected-client-private-key, gateway별 allowed_ips를 별도로 제공한다.
-# gateway별 wireguard_public_key와 wireguard_profile_name(primary/secondary)은
-# private inventory 또는 --extra-vars로 런타임에만 제공한다.
+# Tailscale 관리망. auth key는 커밋하지 않는 0600 파일로만 주입한다.
+management_network_tailscale_runtime_approved: false
+management_network_tailscale_version: "1.102.2"
+management_network_tailscale_server_tag: "tag:aligner-prod"
+management_network_tailscale_auth_key_file: ""
+management_network_remove_legacy_wireguard: false
+management_network_legacy_wireguard_removal_approved: false
 
 # Host firewall. Defaults fail before package/rule changes. Set the approval and
-# proof for each host only after the commands below succeed from a new WG client.
+# proof for each host only after the commands below succeed through Tailscale.
 firewall_runtime_approved: false
-firewall_wireguard_access_proven: false
-firewall_wireguard_cidrs: []
-# k3s-03에는 wg0가 없다. 이 값은 실행 inventory의 management_gateways private_ip와
-# 정확히 같아야 하며, WireGuard gateway의 SNAT된 SSH source만 허용한다.
-firewall_management_gateway_private_ips: []
+firewall_tailscale_access_proven: false
+firewall_tailscale_interface: tailscale0
+firewall_tailscale_server_tag: "tag:aligner-prod"
+firewall_vpc_cidr: "10.20.0.0/16"
 firewall_gabia_lb_private_ip: ""
-firewall_wireguard_ssh_check_command: []
-firewall_wireguard_api_check_command: []
-# Per-host runtime example (do not put client keys in this file):
+firewall_tailscale_api_check_command: []
+# Per-host runtime example (do not put auth keys in this file):
 # firewall_runtime_approved: true
-# firewall_wireguard_access_proven: true
-# firewall_wireguard_cidrs: ["10.99.1.0/24", "10.99.2.0/24"]
-# firewall_management_gateway_private_ips: ["10.20.0.11", "10.20.0.12"]
+# firewall_tailscale_access_proven: true
 # firewall_gabia_lb_private_ip: "10.20.0.10"
-# firewall_wireguard_ssh_check_command: ["ssh", "-o", "BatchMode=yes", "ansible@10.99.1.1", "true"]
-# firewall_wireguard_api_check_command: ["kubectl", "--context", "aligner-primary", "get", "--raw=/livez"]
+# firewall_tailscale_api_check_command: ["kubectl", "--context", "aligner-tailscale", "get", "--raw=/livez"]
