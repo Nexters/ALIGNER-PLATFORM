@@ -1,0 +1,16 @@
+# Apply only after the staging Certificate is Ready, then change the Gateway
+# certificateRef from aligner-api-tls-staging to aligner-api-tls.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: aligner-api
+  namespace: traefik
+  labels:
+    aligner.io/runtime-gate: staging-certificate-ready
+spec:
+  secretName: aligner-api-tls
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+  dnsNames:
+    - api.aligner.example.invalid

@@ -1,0 +1,31 @@
+# Traefik chart 41.2.0 pins Traefik Proxy v3.7.10 (Gateway API provider supported).
+deployment:
+  kind: DaemonSet
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+ingressClass:
+  enabled: false
+providers:
+  kubernetesCRD:
+    enabled: false
+  kubernetesIngress:
+    enabled: false
+  kubernetesGateway:
+    enabled: true
+    experimentalChannel: false
+gateway:
+  enabled: false
+service:
+  spec:
+    type: NodePort
+    externalTrafficPolicy: Local
+ports:
+  web:
+    nodePort: 30080
+  websecure:
+    nodePort: 30443
+additionalArguments:
+  - --ping
+  - --ping.entrypoint=web

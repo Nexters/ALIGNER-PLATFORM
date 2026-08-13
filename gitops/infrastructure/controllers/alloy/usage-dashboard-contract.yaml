@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aligner-grafana-cloud-usage-dashboard-contract
+  namespace: observability
+  labels:
+    app.kubernetes.io/component: dashboard-contract
+    app.kubernetes.io/part-of: aligner
+data:
+  README: >-
+    Dashboard provisioning hook; Grafana Cloud is not mutated by GitOps. Create
+    this dashboard manually or through an approved Grafana-as-code workflow only
+    after the datasource identifiers and free-tier budget are recorded.
+  panels.yaml: |
+    required_panels:
+      - active_series_by_job
+      - active_series_by_metric_and_label
+      - ingested_samples_or_bytes_by_job
+      - log_volume_by_namespace_and_container
+      - free_tier_budget_and_forecast
+    runtime_gate: datasource/query names and budget are not present in Git

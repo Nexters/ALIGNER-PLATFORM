@@ -1,0 +1,22 @@
+# Handoff for #29. Move this into gitops/apps/aligner-api when that directory
+# exists; it is intentionally not part of this platform-owned kustomization.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: aligner-api
+  namespace: aligner
+spec:
+  parentRefs:
+    - name: platform
+      namespace: traefik
+      sectionName: https
+  hostnames:
+    - api.aligner.example.invalid
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      backendRefs:
+        - name: aligner-api
+          port: 8080

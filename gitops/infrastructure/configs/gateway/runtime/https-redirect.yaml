@@ -1,0 +1,17 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: api-https-redirect
+  namespace: traefik
+spec:
+  parentRefs:
+    - name: platform
+      sectionName: http
+  hostnames:
+    - api.aligner.example.invalid
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 308

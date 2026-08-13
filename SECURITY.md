@@ -21,6 +21,17 @@
 
 민감값의 정본은 **Infisical Cloud**다. GitHub Actions는 OIDC로 단기 토큰을 발급받는다.
 
+## Kubernetes 시크릿 경계
+
+`aligner-runtime` Infisical project의 읽기 전용 Machine Identity만 `aligner` namespace의
+`infisical-runtime` SecretStore가 사용한다. `aligner-infra`와 가비아·R2 삭제·break-glass
+자격증명은 이 identity와 클러스터에 주입하지 않는다. ESO는 `aligner` namespace 범위 RBAC로
+실행하며 ClusterSecretStore와 PushSecret을 처리하지 않는다.
+
+Git에는 credential Secret, project/identity ID, 또는 secret 값이 없다. 실제
+`infisical-runtime-credentials` Secret의 생성·회전은 승인된 운영자가 별도 절차로 수행한다.
+애플리케이션 배포는 `aligner-api-runtime` Secret만 참조해야 한다.
+
 ## 취약점 신고
 
 이 저장소나 여기서 관리하는 인프라에서 보안 취약점을 발견하면 Public 이슈로 등록하지 말고

@@ -1,0 +1,29 @@
+# Grafana Alloy chart 1.11.1 / image v1.18.1. The chart pin is the deployable
+# supply-chain pin; update chart and image together in a reviewed change.
+controller:
+  type: daemonset
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+alloy:
+  enableReporting: false
+  configMap:
+    content: |
+      // Runtime Gate: this safe baseline deliberately has no remote endpoint.
+      // Replace only with the reviewed runtime-config.alloy.example contract.
+      logging {
+        level = "warn"
+      }
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+rbac:
+  # Baseline Alloy does not discover or scrape until the runtime Gate passes.
+  rules: []
+  clusterRules: []
+serviceAccount:
+  automountServiceAccountToken: false
