@@ -1,0 +1,53 @@
+# RUNTIME GATE: replace the invalid immutable digest, set measured resources,
+# and add documented Spring Boot HTTP probe paths before applying an overlay.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aligner-api
+  labels:
+    app.kubernetes.io/name: aligner-api
+    app.kubernetes.io/part-of: aligner
+    app.kubernetes.io/component: api
+    aligner.io/runtime-gate: image-probes-and-load-test
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aligner-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: aligner-api
+        app.kubernetes.io/part-of: aligner
+        app.kubernetes.io/component: api
+    spec:
+      serviceAccountName: aligner-api
+      automountServiceAccountToken: false
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: aligner-api
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: aligner-api
+      containers:
+        - name: api
+          image: registry.invalid/aligner-api@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: aligner-api-runtime
+          ports:
+            - name: http
+              containerPort: 8080
+          # Empty until a reviewed load test supplies requests and limits.
+          resources: {}

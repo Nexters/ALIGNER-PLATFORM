@@ -19,13 +19,19 @@ L3  Argo CD    Traefik, Gateway API, cert-manager, ESO, CNPG, 앱
 
 ## 기본 흐름
 
+필수 도구: `ansible-core`, `ansible-lint`, `yamllint`, `shellcheck`.
+
+Ansible 실행 전 고정 collection을 설치한다.
+
+```bash
+make collections
+```
+
 ```bash
 gabiactl validate -f infra/bootstrap/desired-infrastructure.yaml
 gabiactl apply -f infra/bootstrap/desired-infrastructure.yaml
 ALIGNER_BOOTSTRAP_CIDR=<current-ip>/32 make bootstrap-access bootstrap-inventory bootstrap-management
-make inventory lockdown
-ansible-playbook -i .runtime/inventory.yaml ansible/playbooks/site.yml
-ansible-playbook -i .runtime/inventory.yaml ansible/playbooks/verify.yml
+make inventory lockdown site verify
 ```
 
 실제 credential, IP, state, inventory, kubeconfig는 커밋하지 않는다. 상세 기준은 [SECURITY.md](SECURITY.md)를 따른다.

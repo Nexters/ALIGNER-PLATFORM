@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - controllers.yaml
+  - configs.yaml
+# Runtime gates: add data.yaml only after the R2 endpoint, credentials, and
+# Data-B markers pass review. Add apps.yaml only after its child kustomization
+# contains an approved image/probes/resources/egress overlay.

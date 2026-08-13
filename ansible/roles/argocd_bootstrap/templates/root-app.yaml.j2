@@ -6,11 +6,11 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/Nexters/ALIGNER-PLATFORM.git
-    targetRevision: main
+    repoURL: {{ argocd_bootstrap_git_repo_url }}
+    targetRevision: {{ argocd_bootstrap_git_revision }}
     path: gitops/clusters/prod
   destination:
-    server: https://kubernetes.default.svc
+    server: {{ argocd_bootstrap_destination_server }}
     namespace: argocd
   syncPolicy:
     automated:

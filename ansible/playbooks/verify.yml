@@ -1,19 +1,81 @@
 ---
-# 프로덕션 Gate 자동 검증. docs/roadmap.md의 판정 항목을 assert로 표현한다.
-# TODO: 노드 Ready, etcd, Cilium, 자원 Gate를 구현한다.
-- name: Gate 검증
+# Read-only production readiness gate. It never changes a VM, cluster object, or data.
+- name: Production readiness verification
   hosts: k3s_first_server
   become: true
   gather_facts: false
+  vars:
+    production_gate_artifacts_dir: "{{ playbook_dir }}/../../.runtime/production-gate"
+    production_gate_cilium_evidence: "{{ playbook_dir }}/../../.runtime/cilium-gate/gate-summary.yml"
+    production_gate_external_health_evidence_ref: ""
+  pre_tasks:
+    - name: Assert exactly one verification server is configured
+      ansible.builtin.assert:
+        that:
+          - groups['k3s_first_server'] | length == 1
+          - groups['k3s_servers'] | sort == ['k3s-01', 'k3s-02', 'k3s-03']
+          - production_gate_artifacts_dir is match('^/')
+        fail_msg: >-
+          Production gate inventory is invalid. Target k3s-01, k3s-02, and k3s-03
+          exactly; next safe command: ansible-inventory -i .runtime/inventory.yaml --graph.
+
+    - name: Validate successful current-cluster Cilium evidence
+      ansible.builtin.assert:
+        that:
+          - false
+        fail_msg: >-
+          Production remains blocked: local Cilium evidence cannot authorize production.
+          Configure protected signed approval bound to the cluster before enabling this Gate.
+
+    - name: Create local redacted evidence directory
+      ansible.builtin.file:
+        path: "{{ production_gate_artifacts_dir }}"
+        state: directory
+        mode: '0700'
+      delegate_to: localhost
+      become: false
+
   tasks:
-    - name: TODO — 노드 3대 Ready 확인
-      ansible.builtin.debug:
-        msg: "TODO: kubectl get nodes 로 3대 Ready 검증"
+    - name: Hash K3s encryption configuration on every server without reading it
+      ansible.builtin.command:
+        argv: [sha256sum, /var/lib/rancher/k3s/server/cred/encryption-config.json]
+      changed_when: false
+      delegate_to: "{{ item }}"
+      loop: "{{ groups['k3s_servers'] | sort }}"
+      loop_control:
+        label: "{{ item }}"
+      register: production_gate_encryption_hashes
 
-    - name: TODO — etcd 멤버 3개 확인
-      ansible.builtin.debug:
-        msg: "TODO: journalctl -u k3s | grep etcd.*member"
+    - name: Run fixed read-only production checks
+      ansible.builtin.script:
+        cmd: scripts/verify-production-gate.py
+      environment:
+        PRODUCTION_GATE_CILIUM_EVIDENCE_PRESENT: "true"
+        PRODUCTION_GATE_ENCRYPTION_HASHES: "{{ production_gate_encryption_hashes.results | map(attribute='stdout') | list | to_json }}"
+        PRODUCTION_GATE_EXTERNAL_HEALTH_EVIDENCE_REF: "{{ production_gate_external_health_evidence_ref }}"
+      changed_when: false
+      failed_when: false
+      register: production_gate
 
-    - name: TODO — cilium connectivity test
-      ansible.builtin.debug:
-        msg: "TODO: cilium connectivity test 실행 및 결과 검증"
+    - name: Create dated evidence filename
+      ansible.builtin.command:
+        argv: [date, -u, '+%Y%m%dT%H%M%SZ']
+      changed_when: false
+      delegate_to: localhost
+      become: false
+      register: production_gate_timestamp
+
+    - name: Record redacted production gate result outside Git
+      ansible.builtin.copy:
+        dest: "{{ production_gate_artifacts_dir }}/{{ production_gate_timestamp.stdout }}.json"
+        mode: '0600'
+        content: "{{ production_gate.stdout }}\n"
+      delegate_to: localhost
+      become: false
+
+    - name: Fail closed when a production condition is not proven
+      ansible.builtin.assert:
+        that: [production_gate.rc == 0]
+        fail_msg: >-
+          Production gate FAIL. See target and next safe command in
+          {{ production_gate_artifacts_dir }}/{{ production_gate_timestamp.stdout }}.json.

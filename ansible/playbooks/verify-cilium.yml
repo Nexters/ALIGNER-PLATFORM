@@ -289,6 +289,8 @@
         dest: "{{ cilium_gate_artifacts_dir }}/gate-summary.yml"
         mode: "0600"
         content: |
+          result: FAIL
+          server_nodes: {{ (cilium_agents.stdout | from_json).items | map(attribute='spec.nodeName') | list | sort | to_json }}
           cilium_chart: "{{ (cilium_helm_metadata.stdout | from_json).chart }}"
           cilium_cli: {{ cilium_cli_version.stdout | to_json }}
           cilium_status: {{ cilium_status.stdout | to_json }}
