@@ -27,6 +27,11 @@
       - public-tcp-5432
       - public-tcp-6379
       - public-tcp-6443
+    management_exposure_expected_public_negative_ports:
+      public-tcp-22: 22
+      public-tcp-5432: 5432
+      public-tcp-6379: 6379
+      public-tcp-6443: 6443
 
   tasks:
     - name: Stop before any verification command without explicit evidence
@@ -49,6 +54,7 @@
             management_exposure_stage == 'pre-lockdown' or
             (management_exposure_public_negative_checks | length == 4 and
             management_exposure_public_negative_checks | selectattr('host', 'defined') | list | length == 4 and
+            management_exposure_public_negative_checks | selectattr('port', 'defined') | list | length == 4 and
             management_exposure_public_negative_checks | map(attribute='name') | list | sort == management_exposure_expected_public_negative_checks)
           - >-
             management_exposure_stage != 'post-k3s' or
@@ -59,6 +65,14 @@
           Management exposure verification is intentionally not run. Supply an explicit
           stage, evidence reference, and every required read-only check in an untracked
           vars file. No verification command has been executed.
+
+    - name: Bind every public exposure check to its required port
+      ansible.builtin.assert:
+        that:
+          - item.port | int == management_exposure_expected_public_negative_ports[item.name] | int
+        fail_msg: Public exposure check names must use their exact required ports.
+      loop: "{{ management_exposure_public_negative_checks }}"
+      when: management_exposure_stage != 'pre-lockdown'
 
     - name: Verify both WireGuard profiles reach every node over SSH
       ansible.builtin.wait_for:
