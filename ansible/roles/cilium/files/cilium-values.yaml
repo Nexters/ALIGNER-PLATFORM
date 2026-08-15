@@ -31,7 +31,11 @@ operator:
     requests: {cpu: 50m, memory: 128Mi}
 
 hubble:
-  enabled: false                   # minimal Cilium: observability add-on은 채택하지 않는다
+  enabled: true
+  relay: {enabled: false}
+  ui: {enabled: false}
+  metrics:
+    enableOpenMetrics: true
 
 encryption:
   enabled: false                   # 가비아 사설망 테넌트 격리 확인(문의 B3) 후 결정
