@@ -20,7 +20,7 @@
 
 - [ ] `ansible/roles/management_network/` 또는 `firewall/` — **순서를 바꾸지 않았다**
       (management_network 검증 전에 firewall 이 22/6443 을 닫으면 노드 잠금 사고가 난다)
-- [ ] `gitops/infrastructure/**/external-secrets*` 또는 `secret-stores/` — CODEOWNERS 승인 필요
+- [ ] `aligner-api` Secret 계약 또는 bootstrap 스크립트 — CODEOWNERS 승인 필요
 - [ ] `infra/bootstrap/security-groups.yaml` — CODEOWNERS 승인 필요
 - [ ] Cilium 관련 (`ansible/roles/cilium/`, `cluster_cidr`) — **Day 1 확정값이라 사후 변경 불가**.
       정말 바꿔야 한다면 재구축이 필요함을 PR 설명에 명시했다

@@ -8,9 +8,9 @@
 - 작업은 이슈에서 시작한다 — `.github/ISSUE_TEMPLATE/`의 "작업" 또는 "장애·사고" 폼을 쓴다.
 - 작업 브랜치: `<타입>/<이슈번호>-<제목>` (예: `feature/12-k3s-bootstrap`)
 - PR은 draft로 열고, 작성자가 직접 준비 완료 처리한다. PR 본문은 자동 채워지는
-  `.github/PULL_REQUEST_TEMPLATE.md`를 따른다 — 특히 관리망/방화벽 순서, ESO 경로,
+  `.github/PULL_REQUEST_TEMPLATE.md`를 따른다 — 특히 관리망/방화벽 순서, Secret 계약,
   Cilium CIDR 관련 체크리스트는 비워두지 않는다.
-- `CODEOWNERS`에 지정된 경로(ESO/SecretStore, 관리망/방화벽, 보안그룹)는 지정된 리뷰어의
+- `CODEOWNERS`에 지정된 경로(Secret 계약, 관리망/방화벽, 보안그룹)는 지정된 리뷰어의
   승인 없이 merge할 수 없다.
 
 ## 리뷰 우선순위
@@ -20,8 +20,8 @@
 ```text
 - ansible/roles/management_network/**, ansible/roles/firewall/**
   (순서를 바꾸면 노드 잠금 사고가 난다)
-- gitops/infrastructure/controllers/external-secrets/**
-- gitops/infrastructure/configs/secret-stores/**
+- gitops/apps/aligner-api/base/deployment.yaml
+- scripts/bootstrap-aligner-api-secret.sh
 - infra/bootstrap/security-groups.yaml
 ```
 

@@ -16,12 +16,12 @@
 - Gen2 웹 콘솔 또는 터미널 접속 지원 여부 확인
 - 노드 물리 분산 또는 가용 영역 지원 여부 확인
 - B2에서 K3s etcd-s3와 CNPG Barman을 각각 acceptance test
-- Infisical 무료 플랜의 Project, Identity, 사용자 한도 확인
+- 표준 K8s Secret 주입 전 세 server의 Secret encryption hash 일치 확인
 
 ### 준비
 
 - 실제 IP, credential, state, inventory의 Git 미추적 확인
-- `aligner-infra`, `aligner-runtime` Infisical Project 구성
+- Git 밖 `application-secret.properties`의 9개 key 계약 검증
 - K3s token 사전 생성과 오프클러스터 보관
 - B2 `k3s-etcd/`와 `cnpg/` prefix-scoped writer/restore 자격증명 분리
 - `gabiactl` sandbox에서 create → 재실행 No changes → inventory → destroy 시험
@@ -66,12 +66,13 @@
 - cilium-agent 실제 RSS/CPU 기록
 - 한 노드 정지 상태에서 필수 request가 두 노드 allocatable의 85% 이하
 
-Gate 실패 시 프로덕션 데이터 투입 전에 Flannel로 클러스터를 재생성한다.
+Gate 실패 시 프로덕션 데이터 투입을 중단하고 Cilium 설정이나 기반 가정을 수정한다. 별도 CNI
+migration 경로는 유지하지 않는다.
 
 ## 3주차 — 데이터·시크릿·관측
 
-1. Infisical Project와 Identity 경계를 검증한다.
-2. ESO, CloudNativePG, Redis, Alloy를 Argo CD로 배포한다.
+1. Git 밖 로컬 파일에서 `aligner-api-secrets`를 주입하고 9개 key만 확인한다.
+2. CloudNativePG, Redis, Alloy를 Argo CD로 배포한다.
 3. CNPG primary/standby가 서로 다른 노드에 있는지 확인한다.
 4. PostgreSQL WAL archive와 주간 base backup을 B2 `cnpg/`에 연결한다.
 5. K3s etcd snapshot을 6시간 주기로 B2 `k3s-etcd/`에 연결한다.
@@ -79,7 +80,7 @@ Gate 실패 시 프로덕션 데이터 투입 전에 Flannel로 클러스터를 
 
 ### DoD
 
-- ESO가 `aligner-infra`를 읽지 못함
+- `aligner-api`가 `aligner-api-secrets`만 참조하고 Secret 값·manifest가 Git에 없음
 - K3s encryption hash가 세 server에서 일치
 - B2 writer가 자기 prefix 밖의 객체를 읽거나 쓸 수 없음
 - WAL archive 실패와 etcd snapshot 실패 경보가 동작

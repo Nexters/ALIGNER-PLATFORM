@@ -50,6 +50,23 @@ ssh ubuntu@k3s-03 true
 kubectl --server=https://k3s-01:6443 get --raw=/readyz
 ```
 
+## Tailscale kubeconfig 연결
+
+로컬 context가 없으면 Tailscale VPN을 켜고 MagicDNS가 동작하는 상태에서 한 server의 K3s
+kubeconfig를 Git 밖 `.runtime`에 저장한다. 명령의 표준 출력이나 PR에 파일 내용을 붙이지 않는다.
+
+```bash
+install -m 700 -d .runtime
+umask 077
+ssh ubuntu@k3s-01 'sudo cat /etc/rancher/k3s/k3s.yaml' > .runtime/kubeconfig
+kubectl --kubeconfig .runtime/kubeconfig config set-cluster default --server=https://k3s-01:6443
+export KUBECONFIG="$PWD/.runtime/kubeconfig"
+kubectl get --raw=/readyz
+```
+
+연결 뒤에만 nodes, etcd, Cilium, Argo CD, Traefik, cert-manager, CNPG, B2 설정을 read-only로
+확인한다. kubeconfig가 없거나 API가 응답하지 않으면 runtime 상태를 증명했다고 기록하지 않는다.
+
 `make site`는 승인값과 K3s/B2 시크릿을 담은 Git 밖의 0600 runtime vars 파일을
 `ALIGNER_RUNTIME_VARS_FILE`로 요구한다. `make site`, `make verify`, `make verify-cilium`은 private topology inventory 뒤에
 `ansible/inventories/tailscale/hosts.yml`을 합성해 `ansible_host`만 MagicDNS 이름으로

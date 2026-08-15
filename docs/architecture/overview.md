@@ -36,7 +36,7 @@ Cluster
   ├─ Cilium 최소 구성 + kube-proxy
   ├─ Argo CD
   ├─ Traefik + cert-manager + Gateway API
-  ├─ Infisical Cloud + External Secrets Operator
+  ├─ Kubernetes Secret (Git 밖에서 주입)
   ├─ CloudNativePG primary + standby
   ├─ Redis emptyDir
   └─ Grafana Alloy → Grafana Cloud
@@ -110,8 +110,9 @@ VM당 데이터 볼륨 두 개의 attach·재조회·detach가 확인되지 않�
 - CloudNativePG `instances: 2`로 primary와 standby를 서로 다른 노드에 배치한다.
 - 기본 연결은 `-rw` Service다. 명시적으로 stale read를 허용한 조회만 `-ro`를 사용한다.
 - Redis는 재생성 가능한 캐시이며 `emptyDir`를 사용한다.
-- Infisical은 `aligner-infra`와 `aligner-runtime` Project로 나눈다.
-- ESO identity는 `aligner-runtime`에만 가입한다.
+- Server의 Git 제외 `application-secret.properties`와 K3s의 `aligner-api-secrets`가 같은 9개
+  환경변수 계약을 사용한다. 값과 Secret manifest는 Git에 두지 않는다.
+- GitHub Actions는 비밀 없는 이미지를 만들고 Platform digest PR만 생성하며 K3s에 직접 접속하지 않는다.
 - K3s Secret encryption을 활성화하고 server 세 대의 encryption hash 일치를 확인한다.
 
 ### 관측과 백업

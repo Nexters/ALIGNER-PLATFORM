@@ -3,7 +3,6 @@ kind: Kustomization
 resources:
   - cloudnative-pg
   - alloy
-  - external-secrets/application.yaml
   - gateway-api
   - cert-manager
   - traefik

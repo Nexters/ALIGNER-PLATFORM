@@ -19,18 +19,15 @@
 - 클라우드 리소스 ID가 포함된 generated inventory
 ```
 
-민감값의 정본은 **Infisical Cloud**다. GitHub Actions는 OIDC로 단기 토큰을 발급받는다.
+애플리케이션 민감값의 정본은 Git 밖의 `application-secret.properties`다. GitHub Actions에는
+GHCR 발행과 Platform PR 생성에 필요한 CI 자격증명만 둔다.
 
 ## Kubernetes 시크릿 경계
 
-`aligner-runtime` Infisical project의 읽기 전용 Machine Identity만 `aligner` namespace의
-`infisical-runtime` SecretStore가 사용한다. `aligner-infra`와 가비아·B2 삭제·break-glass
-자격증명은 이 identity와 클러스터에 주입하지 않는다. ESO는 `aligner` namespace 범위 RBAC로
-실행하며 ClusterSecretStore와 PushSecret을 처리하지 않는다.
-
-Git에는 credential Secret, project/identity ID, 또는 secret 값이 없다. 실제
-`infisical-runtime-credentials` Secret의 생성·회전은 승인된 운영자가 별도 절차로 수행한다.
-애플리케이션 배포는 `aligner-api-runtime` Secret만 참조해야 한다.
+승인된 운영자는 로컬 파일의 정확한 9개 key를 표준 Kubernetes Secret
+`aligner/aligner-api-secrets`로 주입한다. Git에는 Secret manifest나 값이 없으며, Deployment는 이
+Secret 하나만 참조한다. K3s Secret encryption을 활성화하고 세 server의 encryption hash가
+일치하는지 확인하기 전에는 운영 값을 주입하지 않는다.
 
 ## 취약점 신고
 

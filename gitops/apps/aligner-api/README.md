@@ -3,6 +3,9 @@
 `gitops/apps/kustomization.yaml` deliberately does not include this directory.
 Before an overlay can be applied, a reviewer must replace the invalid immutable
 image digest; record the CI build and reviewed digest in the deployment PR.
+The zero digest is a runtime gate, not a deployable image. Before enabling this
+app, create `aligner-api-secrets` out of band as documented in
+`docs/runbooks/kubernetes-secrets.md` and replace the digest through Server CI.
 
 The platform repository documents port `8080`, but not Spring Boot startup,
 readiness, or liveness HTTP paths. Do not guess Actuator paths. Add the three

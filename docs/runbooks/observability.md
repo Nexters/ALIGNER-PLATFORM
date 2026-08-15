@@ -7,7 +7,7 @@ DaemonSet을 배포하지만, 기본 설정은 원격 전송·discovery·scrape�
 운영 기록에 남기기 전에는 `runtime-config.alloy.example`을 적용하거나 Grafana Cloud를 변경하지
 않는다.
 
-1. Grafana Cloud metrics/logs endpoint와 각 username, API key Secret의 ESO 소유 경로를 확인한다.
+1. Grafana Cloud metrics/logs endpoint와 각 username, API key를 담은 Git 밖 K8s Secret 이름을 확인한다.
    Secret 값, endpoint tenant ID, API key는 Git·터미널 출력·라벨에 기록하지 않는다.
 2. node, Kubernetes, embedded etcd, Cilium, CNPG, API/JVM 각각에 대해 실제 scrape URL, 인증,
    metric family, 필요한 label과 단위를 `metric-contract` 운영 기록에 캡처한다. endpoint 또는
