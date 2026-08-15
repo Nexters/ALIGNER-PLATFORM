@@ -7,6 +7,7 @@ policy="$root_dir/../../../../docs/runbooks/tailscale-policy.hujson"
 controllers="$root_dir/../../controllers"
 
 kubectl kustomize "$ui_dir" >/dev/null
+kubectl kustomize --enable-helm "$controllers" >/dev/null
 
 grep -q 'chart: tailscale-operator' "$controllers/tailscale-operator.application.yaml"
 if grep -Eq 'tskey-|clientSecret: [^ ]|client_id: [^ ]' \
@@ -25,6 +26,8 @@ grep -q 'kind: ProxyGroup' "$ui_dir/proxy-group.yaml"
 grep -q 'replicas: 2' "$ui_dir/proxy-group.yaml"
 grep -q 'tag:aligner-argocd' "$ui_dir/proxy-group.yaml"
 grep -q 'ingressClassName: tailscale' "$ui_dir/ingress.yaml"
+grep -q 'tailscale.com/tags: "tag:aligner-argocd"' "$ui_dir/ingress.yaml"
 grep -q 'server.insecure: "true"' "$ui_dir/argocd-cmd-params.yaml"
 grep -q 'tag:aligner-k8s-operator' "$policy"
 grep -q 'tag:aligner-argocd' "$policy"
+grep -q 'autoApprovers' "$policy"

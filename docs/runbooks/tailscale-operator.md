@@ -27,6 +27,11 @@ OAuth client에는 `Devices Core`, `Auth Keys`, `Services` write scope와
 
 4. Argo CD에서 `tailscale-operator`와 `tailscale-argocd-ui`가 Healthy인지 확인한다. Secret 값은
    보지 않고 이름·key와 workload 상태만 본다. Secret이 없으면 Operator/UI만 Runtime Gate로 남긴다.
+5. `argocd-cmd-params-cm`의 `server.insecure: "true"` 적용을 위해 `argocd-server` 파드를 롤아웃한다.
+
+   ```bash
+   kubectl --context <tailscale-kubectl-context> -n argocd rollout restart deployment/argocd-server
+   ```
 
 ## 접속과 회전
 

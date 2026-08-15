@@ -5,6 +5,7 @@ metadata:
   namespace: argocd
   annotations:
     tailscale.com/proxy-group: aligner-argocd-ui
+    tailscale.com/tags: "tag:aligner-argocd"
 spec:
   ingressClassName: tailscale
   defaultBackend:

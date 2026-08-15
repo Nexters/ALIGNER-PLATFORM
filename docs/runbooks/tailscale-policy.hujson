@@ -7,9 +7,14 @@
   },
   "tagOwners": {
     "tag:aligner-prod": ["group:aligner-operators"],
-    "tag:aligner-k8s-operator": [],
-    "tag:aligner-k8s": ["tag:aligner-k8s-operator"],
-    "tag:aligner-argocd": ["tag:aligner-k8s-operator"],
+    "tag:aligner-k8s-operator": ["group:aligner-operators"],
+    "tag:aligner-k8s": ["tag:aligner-k8s-operator", "group:aligner-operators"],
+    "tag:aligner-argocd": ["tag:aligner-k8s-operator", "group:aligner-operators"],
+  },
+  "autoApprovers": {
+    "services": {
+      "tag:aligner-argocd": ["tag:aligner-argocd", "tag:aligner-k8s-operator"],
+    },
   },
   "grants": [
     {
@@ -21,6 +26,11 @@
       "src": ["group:aligner-operators"],
       "dst": ["tag:aligner-argocd"],
       "ip": ["tcp:443"],
+    },
+    {
+      "src": ["group:aligner-operators"],
+      "dst": ["tag:aligner-argocd:*"],
+      "ip": ["icmp:*"],
     },
   ],
 }
