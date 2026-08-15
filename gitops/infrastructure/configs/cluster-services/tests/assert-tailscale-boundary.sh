@@ -2,17 +2,23 @@
 set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-bootstrap_dir="$root_dir/bootstrap"
 ui_dir="$root_dir/argocd-ui"
 policy="$root_dir/../../../../docs/runbooks/tailscale-policy.hujson"
+controllers="$root_dir/../../controllers"
 
-kubectl kustomize "$bootstrap_dir" >/dev/null
 kubectl kustomize "$ui_dir" >/dev/null
 
-grep -q 'projectSlug: aligner-cluster-services' "$bootstrap_dir/secret-store.yaml"
-grep -q 'name: operator-oauth' "$bootstrap_dir/tailscale-operator-oauth.yaml"
-if grep -Eq 'tskey-|clientSecret: [^ ]|client_id: [^ ]' "$bootstrap_dir"/*.yaml; then
-  echo "cluster services manifests must not contain credential values" >&2
+grep -q 'chart: tailscale-operator' "$controllers/tailscale-operator.application.yaml"
+if grep -Eq 'tskey-|clientSecret: [^ ]|client_id: [^ ]' \
+  "$controllers/tailscale-operator.application.yaml" \
+  "$controllers/tailscale-argocd-ui.application.yaml" \
+  "$ui_dir"/*.yaml; then
+  echo "Tailscale manifests must not contain credential values" >&2
+  exit 1
+fi
+if grep -Eq 'aligner-cluster-services|tailscale-external-secrets|tailscale-bootstrap' \
+  "$controllers/kustomization.yaml"; then
+  echo "obsolete Tailscale bootstrap controllers must not be enabled" >&2
   exit 1
 fi
 grep -q 'kind: ProxyGroup' "$ui_dir/proxy-group.yaml"

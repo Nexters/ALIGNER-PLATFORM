@@ -21,7 +21,7 @@
 ### 준비
 
 - 실제 IP, credential, state, inventory의 Git 미추적 확인
-- `aligner-infra`, `aligner-runtime`, `aligner-cluster-services` Infisical Project 구성
+- `aligner-infra`, `aligner-runtime` Infisical Project 구성
 - K3s token 사전 생성과 오프클러스터 보관
 - B2 `k3s-etcd/`와 `cnpg/` prefix-scoped writer/restore 자격증명 분리
 - `gabiactl` sandbox에서 create → 재실행 No changes → inventory → destroy 시험

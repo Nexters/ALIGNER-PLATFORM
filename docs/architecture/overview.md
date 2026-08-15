@@ -111,8 +111,8 @@ VM당 데이터 볼륨 두 개의 attach·재조회·detach가 확인되지 않�
 - CloudNativePG `instances: 2`로 primary와 standby를 서로 다른 노드에 배치한다.
 - 기본 연결은 `-rw` Service다. 명시적으로 stale read를 허용한 조회만 `-ro`를 사용한다.
 - Redis는 재생성 가능한 캐시이며 `emptyDir`를 사용한다.
-- Infisical은 `aligner-infra`, `aligner-runtime`, `aligner-cluster-services` Project로 나눈다.
-- ESO identity는 각 Project에 하나씩 분리하며, `aligner-infra`에는 Kubernetes ESO identity를 가입시키지 않는다.
+- Infisical은 `aligner-infra`와 `aligner-runtime` Project로 나눈다.
+- ESO identity는 `aligner-runtime`에만 가입한다.
 - K3s Secret encryption을 활성화하고 server 세 대의 encryption hash 일치를 확인한다.
 
 ### 관측과 백업

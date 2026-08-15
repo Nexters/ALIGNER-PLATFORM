@@ -2,9 +2,8 @@
 
 ## 보안 경계
 
-`aligner-cluster-services`는 클러스터 controller 전용 Infisical Project다.
-`aligner-infra`와 `aligner-runtime`의 Machine Identity를 재사용하지 않는다. Tailscale
-Operator OAuth client ID와 secret은 이 Project의 `prod` 환경 `/tailscale` path에만 저장한다.
+Tailscale Operator OAuth 값은 Git 밖에서 `tailscale/operator-oauth` Kubernetes Secret 하나로
+주입한다. 별도 Infisical Project, Machine Identity, ESO controller를 만들지 않는다.
 
 OAuth client에는 `Devices Core`, `Auth Keys`, `Services` write scope와
 `tag:aligner-k8s-operator` tag만 부여한다. Tailscale policy에서 이 tag만
@@ -12,13 +11,22 @@ OAuth client에는 `Devices Core`, `Auth Keys`, `Services` write scope와
 
 ## Bootstrap
 
-1. 두 운영자는 `aligner-cluster-services` Project admin으로 등록하고 2FA를 확인한다.
-2. Tailscale admin console에서 위 scope와 tag로 OAuth client를 발급해 두 값을 Infisical에 저장한다.
-3. 별도 Machine Identity를 이 Project에만 Viewer로 등록한다. Universal Auth bootstrap pair는
-   `tailscale` namespace의 `infisical-cluster-services-credentials` Secret에 운영자가 수동 주입한다.
-   이 pair와 OAuth 값은 Git, 쉘 기록, 화면 공유, 로그에 남기지 않는다.
-4. Argo CD가 `tailscale-external-secrets` → `tailscale-bootstrap` → `tailscale-operator` →
-   `tailscale-argocd-ui` 순서로 Healthy인지 확인한다. Secret 값은 보지 않고 이름·key·Ready 조건만 본다.
+1. Tailscale admin console에서 위 scope와 tag로 OAuth client를 발급한다.
+2. 운영자는 `tailscale` namespace를 만든 뒤 Git 밖의 0600 env 파일에 `client_id`와
+   `client_secret` 두 key를 저장한다.
+3. 아래 명령으로 Secret을 주입한 뒤 로컬 파일을 안전하게 폐기한다. 값은 Git, 쉘 기록, 화면 공유,
+   로그에 남기지 않는다.
+
+   ```bash
+   kubectl --context <tailscale-kubectl-context> create namespace tailscale \
+     --dry-run=client -o yaml | kubectl --context <tailscale-kubectl-context> apply -f -
+   kubectl --context <tailscale-kubectl-context> -n tailscale create secret generic operator-oauth \
+     --from-env-file=<git-outside-0600-oauth-file> \
+     --dry-run=client -o yaml | kubectl --context <tailscale-kubectl-context> apply -f -
+   ```
+
+4. Argo CD에서 `tailscale-operator`와 `tailscale-argocd-ui`가 Healthy인지 확인한다. Secret 값은
+   보지 않고 이름·key와 workload 상태만 본다. Secret이 없으면 Operator/UI만 Runtime Gate로 남긴다.
 
 ## 접속과 회전
 
@@ -26,5 +34,5 @@ UI 주소는 MagicDNS의 `aligner-argocd` 이름이다. 두 운영자는 VPN 연
 Tailscale가 TLS를 종료하므로 Argo CD server는 내부 HTTP로 동작한다. 공인 LB, port-forward,
 Tailscale SSH는 사용하지 않는다.
 
-OAuth 회전은 Infisical에 새 값을 먼저 저장하고 ExternalSecret Ready와 Operator/ProxyGroup health를
-확인한 뒤 이전 OAuth client를 revoke한다. 실패하면 새 client를 revoke하고 이전 값으로 되돌린다.
+OAuth 회전은 새 client로 `operator-oauth`를 갱신하고 Operator/ProxyGroup health를 확인한 뒤 이전
+OAuth client를 revoke한다. 실패하면 새 client를 revoke하고 이전 Secret으로 되돌린다.
