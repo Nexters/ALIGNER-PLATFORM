@@ -39,6 +39,7 @@ echo "$configs_manifest" | grep -q 'name: platform-gateway'
 echo "$configs_manifest" | grep -q 'name: platform-traefik'
 echo "$configs_manifest" | grep -q 'name: letsencrypt-production'
 echo "$configs_manifest" | grep -q 'name: aligner-api-tls'
+echo "$configs_manifest" | grep -q 'test.aligneryoga.com'
 echo "$configs_manifest" | grep -q 'name: aligner-db'
 echo "$configs_manifest" | grep -q 'name: infisical-runtime'
 echo "  ✓ gitops/infrastructure/configs rendered and validated successfully."
@@ -57,6 +58,7 @@ echo "$sandbox_manifest" | grep -q 'name: aligner-sandbox'
 echo "$sandbox_manifest" | grep -q 'name: sandbox-quota'
 echo "$sandbox_manifest" | grep -q 'name: sandbox-limits'
 echo "$sandbox_manifest" | grep -q 'name: aligner-sandbox-api'
+echo "$sandbox_manifest" | grep -q 'test.aligneryoga.com'
 echo "  ✓ gitops/apps/aligner-sandbox/base rendered and validated successfully."
 
 # 3. Verify gitops/apps/aligner-api/overlays/normal kustomization

@@ -28,8 +28,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: registry.invalid/aligner-api@sha256:0000000000000000000000000000000000000000000000000000000000000000
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/nexters/aligner-server:develop
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -39,16 +39,11 @@ spec:
             - name: http
               containerPort: 8080
           env:
-            - name: SPRING_DATASOURCE_URL
-              value: "jdbc:postgresql://aligner-postgresql-rw.aligner-data.svc:5432/aligner_dev"
-            - name: DATABASE_URL
-              value: "postgresql://aligner-postgresql-rw.aligner-data.svc:5432/aligner_dev"
-            - name: DB_HOST
-              value: "aligner-postgresql-rw.aligner-data.svc"
-            - name: DB_PORT
-              value: "5432"
-            - name: DB_NAME
-              value: "aligner_dev"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "dev"
+          envFrom:
+            - secretRef:
+                name: aligner-api-secrets
           resources:
             requests:
               cpu: 100m

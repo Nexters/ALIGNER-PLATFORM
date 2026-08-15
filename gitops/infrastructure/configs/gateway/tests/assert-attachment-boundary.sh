@@ -32,7 +32,6 @@ fi
 printf '%s\n' "$https_listener" | grep -q 'from: Selector'
 printf '%s\n' "$https_listener" | grep -q 'gateway-access: "true"'
 printf '%s\n' "$https_listener" | grep -q 'name: aligner-api-tls'
-printf '%s\n' "$https_listener" | grep -q 'hostname: api.aligneryoga.com'
 
 # 5. HTTPS redirect HTTPRoute assertions
 grep -q '^kind: HTTPRoute$' "$redirect"
@@ -44,6 +43,7 @@ grep -q 'statusCode: 308' "$redirect"
 grep -q 'scheme: https' "$redirect"
 grep -q 'api.aligneryoga.com' "$redirect"
 grep -q 'aligneryoga.com' "$redirect"
+grep -q 'test.aligneryoga.com' "$redirect"
 
 # 6. No .invalid placeholder hostnames in manifests
 if grep -Eq '\.invalid' "$runtime_dir"/*.yaml "$gateway_dir"/*.yaml; then

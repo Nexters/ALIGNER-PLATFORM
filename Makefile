@@ -1,4 +1,4 @@
-.PHONY: lint collections render bootstrap-access bootstrap-inventory bootstrap-management bootstrap-firewall inventory lockdown site verify verify-cilium test-verify test-failover-drill test-etcd-recovery test-k3s-cilium-upgrade test-full-rebuild test-postgresql-pitr
+.PHONY: lint collections render bootstrap-access bootstrap-inventory bootstrap-management bootstrap-firewall inventory lockdown site verify verify-cilium test-verify test-failover-drill test-etcd-recovery test-k3s-cilium-upgrade test-full-rebuild test-postgresql-pitr test-bootstrap-secret test-update-image
 
 ANSIBLE_CONFIG := $(CURDIR)/ansible/ansible.cfg
 ANSIBLE_COLLECTIONS_PATH := $(CURDIR)/.ansible/collections
@@ -7,7 +7,7 @@ TAILSCALE_INVENTORY := $(CURDIR)/ansible/inventories/tailscale/hosts.yml
 lint:
 	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-lint ansible/
 	yamllint ansible/
-	find ansible/roles -type f -path '*/files/*.sh' -exec shellcheck {} +
+	find ansible/roles scripts -type f \( -name '*.sh' -o -path '*/files/*.sh' \) -exec shellcheck {} +
 
 collections:
 	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ansible-galaxy collection install -r ansible/requirements.yml -p $(ANSIBLE_COLLECTIONS_PATH)
@@ -80,3 +80,12 @@ test-full-rebuild:
 
 test-postgresql-pitr:
 	python3 scripts/test_validate_postgresql_pitr.py
+
+test-bootstrap-secret:
+	python3 scripts/tests/test_bootstrap_aligner_api_secret.py
+
+test-update-image:
+	python3 scripts/tests/test_update_aligner_api_image.py
+
+test: test-verify test-bootstrap-secret test-update-image
+
