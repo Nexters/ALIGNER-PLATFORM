@@ -31,16 +31,7 @@ operator:
     requests: {cpu: 50m, memory: 128Mi}
 
 hubble:
-  enabled: true
-  relay: {enabled: false} # Relay·UI는 실제 요구 전까지 켜지 않는다
-  ui: {enabled: false}
-  metrics:
-    enableOpenMetrics: true
-    enabled:                       # agent 메트릭만 — Hubble 채택 근거를 실제로 회수한다
-      - dns
-      - drop
-      - policy:sourceContext=workload-name|reserved-identity;destinationContext=workload-name|reserved-identity
-      # tcp · flow · port-distribution 은 Phase 1 에서 켜지 않는다 (카디널리티)
+  enabled: false                   # minimal Cilium: observability add-on은 채택하지 않는다
 
 encryption:
   enabled: false                   # 가비아 사설망 테넌트 격리 확인(문의 B3) 후 결정
