@@ -15,15 +15,9 @@ spec:
     initdb:
       database: aligner_prod
       owner: aligner_prod_user
-      postInitApplicationSQLRefs:
-        configMapRefs:
-          - name: aligner-db-init-sql
-            key: init-databases.sql
   resources:
     requests:
       cpu: 100m
       memory: 256Mi
     limits:
       memory: 1Gi
-  monitoring:
-    enablePodMonitor: true

@@ -16,7 +16,7 @@ spec:
     - matches:
         - path:
             type: PathPrefix
-            value: /api
+            value: /
       backendRefs:
         - name: aligner-api
           port: 8080

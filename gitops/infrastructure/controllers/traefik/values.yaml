@@ -24,8 +24,10 @@ service:
     externalTrafficPolicy: Local
 ports:
   web:
+    port: 80
     nodePort: 30080
   websecure:
+    port: 443
     nodePort: 30443
 additionalArguments:
   - --ping

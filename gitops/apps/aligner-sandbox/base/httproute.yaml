@@ -19,7 +19,7 @@ spec:
     - matches:
         - path:
             type: PathPrefix
-            value: /api
+            value: /
       backendRefs:
         - name: aligner-sandbox-api
           port: 8080
