@@ -6,6 +6,6 @@ metadata:
 data:
   init-databases.sql: |
     CREATE DATABASE aligner_dev;
-    CREATE USER aligner_dev_user WITH ENCRYPTED PASSWORD 'replace_via_eso_or_local';
+    CREATE USER aligner_dev_user;
     GRANT ALL PRIVILEGES ON DATABASE aligner_dev TO aligner_dev_user;
     ALTER DATABASE aligner_dev OWNER TO aligner_dev_user;

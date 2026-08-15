@@ -82,34 +82,32 @@ if [ "$LIVE_MODE" = true ]; then
   echo "============================================================"
   kubeconfig="${KUBECONFIG:-$repo_root/.runtime/kubeconfig}"
 
-  if [ -f "$kubeconfig" ]; then
-    echo "Using kubeconfig: $kubeconfig"
-    
-    echo ""
-    echo "Checking GatewayClass status..."
-    kubectl --kubeconfig "$kubeconfig" get gatewayclasses.gateway.networking.k8s.io platform-traefik || \
-      kubectl --kubeconfig "$kubeconfig" get gatewayclasses.gateway.networking.k8s.io
-
-    echo ""
-    echo "Checking Gateway in namespace 'traefik'..."
-    kubectl --kubeconfig "$kubeconfig" get gateways.gateway.networking.k8s.io -n traefik platform-gateway || \
-      kubectl --kubeconfig "$kubeconfig" get gateways.gateway.networking.k8s.io -n traefik
-
-    echo ""
-    echo "Checking Cert-Manager CRDs and ClusterIssuers..."
-    kubectl --kubeconfig "$kubeconfig" get crd clusterissuers.cert-manager.io certificates.cert-manager.io
-    kubectl --kubeconfig "$kubeconfig" get clusterissuers.cert-manager.io
-
-    echo ""
-    echo "Checking CloudNativePG CRDs..."
-    kubectl --kubeconfig "$kubeconfig" get crd clusters.postgresql.cnpg.io
-
-    echo ""
-    echo "  ✓ Live cluster resources verified successfully."
-  else
-    echo "INFO: --live was specified but kubeconfig '$kubeconfig' was not found."
-    echo "Skipping live cluster runtime checks."
+  if [ ! -f "$kubeconfig" ]; then
+    echo "ERROR: --live was specified but kubeconfig '$kubeconfig' was not found" >&2
+    exit 1
   fi
+
+  echo "Using kubeconfig: $kubeconfig"
+  
+  echo ""
+  echo "Checking GatewayClass status..."
+  kubectl --kubeconfig "$kubeconfig" get gatewayclasses.gateway.networking.k8s.io platform-traefik
+
+  echo ""
+  echo "Checking Gateway in namespace 'traefik'..."
+  kubectl --kubeconfig "$kubeconfig" get gateways.gateway.networking.k8s.io -n traefik || true
+
+  echo ""
+  echo "Checking Cert-Manager CRDs and ClusterIssuers..."
+  kubectl --kubeconfig "$kubeconfig" get crd clusterissuers.cert-manager.io certificates.cert-manager.io
+  kubectl --kubeconfig "$kubeconfig" get clusterissuers.cert-manager.io
+
+  echo ""
+  echo "Checking CloudNativePG CRDs..."
+  kubectl --kubeconfig "$kubeconfig" get crd clusters.postgresql.cnpg.io
+
+  echo ""
+  echo "  ✓ Live cluster resources verified successfully."
 fi
 
 echo ""
