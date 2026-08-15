@@ -24,3 +24,6 @@ rg -q 'aligner-postgresql-rw' "$repo_root/gitops/apps/aligner-api/README.md"
 rg -q 'aligner-redis' "$repo_root/gitops/apps/aligner-api/README.md"
 rg -q 'Do not guess Actuator paths' "$repo_root/gitops/apps/aligner-api/README.md"
 rg -q 'registry.invalid/aligner-api@sha256:[0-9a-f]{64}' "$render_dir/normal.yaml"
+rg -q 'name: aligner-api-secrets' "$render_dir/normal.yaml"
+test -f "$repo_root/gitops/apps/aligner-api/runtime-secret.keys"
+
