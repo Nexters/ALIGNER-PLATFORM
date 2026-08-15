@@ -5,6 +5,7 @@ argocd_bootstrap_install_manifest_url: "https://raw.githubusercontent.com/argopr
 argocd_bootstrap_install_manifest_checksum: 'sha256:65d9d4ff520ddb40bad2c39b1f44188ceecfe96b5dd29c8ead569b52d6c6b8c6'
 argocd_bootstrap_install_manifest_path: /var/tmp/argocd-ha-install-v3.5.0.yaml
 argocd_bootstrap_kubeconfig: /etc/rancher/k3s/k3s.yaml
+argocd_bootstrap_k3s_command: /usr/local/bin/k3s
 argocd_bootstrap_runtime_approved: false
 
 argocd_bootstrap_git_repo_url: https://github.com/Nexters/ALIGNER-PLATFORM.git
