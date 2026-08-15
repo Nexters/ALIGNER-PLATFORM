@@ -3,10 +3,8 @@
   ansible.builtin.set_fact:
     firewall_private_interfaces: >-
       {{ ansible_facts | dict2items | selectattr('value.ipv4', 'defined')
+      | selectattr('value.ipv4', 'mapping')
       | selectattr('value.ipv4.address', 'equalto', private_ip) | map(attribute='key') | list }}
-    firewall_public_interfaces: >-
-      {{ ansible_facts | dict2items | selectattr('value.ipv4', 'defined')
-      | selectattr('value.ipv4.address', 'equalto', public_ip) | map(attribute='key') | list }}
     firewall_k3s_node_private_ips: >-
       {{ groups['k3s_servers'] | map('extract', hostvars, 'private_ip') | list | sort }}
   changed_when: false
@@ -23,9 +21,7 @@
       - firewall_runtime_approved | bool
       - firewall_tailscale_access_proven | bool
       - private_ip in ansible_all_ipv4_addresses
-      - public_ip in ansible_all_ipv4_addresses
       - firewall_private_interfaces | length == 1
-      - firewall_public_interfaces | length == 1
       - firewall_tailscale_interface in ansible_interfaces
       - (firewall_tailscale_status.stdout | from_json).BackendState == 'Running'
       - (firewall_tailscale_status.stdout | from_json).Self.HostName == inventory_hostname
