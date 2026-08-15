@@ -25,6 +25,11 @@ spec:
       automountServiceAccountToken: false
       imagePullSecrets:
         - name: ghcr-secret
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname

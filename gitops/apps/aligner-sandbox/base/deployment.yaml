@@ -20,6 +20,7 @@ spec:
         app.kubernetes.io/component: api
         app.kubernetes.io/environment: sandbox
     spec:
+      serviceAccountName: default
       automountServiceAccountToken: false
       imagePullSecrets:
         - name: ghcr-secret
