@@ -29,4 +29,3 @@ ports:
     nodePort: 30443
 additionalArguments:
   - --ping
-  - --ping.entrypoint=web
