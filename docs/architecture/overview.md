@@ -25,6 +25,7 @@ Traefik ×3 ─ Gateway API HTTPRoute ─ ALIGNER API
 
 운영자 노트북 A/B
   │ Tailscale + MagicDNS
+  ├─ Argo CD UI (Tailscale HA ProxyGroup ×2)
   └─ k3s-01/02/03 직접
        └─ OpenSSH 22 / Kubernetes API 6443
 

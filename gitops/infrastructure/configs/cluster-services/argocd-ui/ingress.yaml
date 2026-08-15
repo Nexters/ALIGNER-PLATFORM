@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aligner-argocd
+  namespace: argocd
+  annotations:
+    tailscale.com/proxy-group: aligner-argocd-ui
+    tailscale.com/tags: "tag:aligner-argocd"
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: argocd-server
+      port:
+        number: 80
+  tls:
+    - hosts:
+        - aligner-argocd

@@ -1,0 +1,11 @@
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyGroup
+metadata:
+  name: aligner-argocd-ui
+spec:
+  type: ingress
+  hostnamePrefix: aligner-argocd
+  replicas: 2
+  proxyClass: aligner-argocd-ui
+  tags:
+    - tag:aligner-argocd
