@@ -21,6 +21,8 @@ spec:
         app.kubernetes.io/environment: sandbox
     spec:
       automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: ghcr-secret
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
