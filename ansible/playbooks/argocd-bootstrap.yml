@@ -1,0 +1,9 @@
+---
+# Phase 4: one-time Argo CD HA control-plane bootstrap. Subsequent workloads
+# are reconciled by Argo CD from Git, not by this playbook.
+- name: Bootstrap Argo CD HA
+  hosts: k3s_first_server
+  become: true
+  gather_facts: false
+  roles:
+    - argocd_bootstrap
