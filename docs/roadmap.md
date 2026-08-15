@@ -57,6 +57,14 @@
 4. cert-manager, Traefik, Gateway API CRD, Argo CD를 설치한다.
 5. root application과 ALIGNER 비프로덕션 HTTPRoute를 동기화한다.
 6. External LB → Traefik → HTTPRoute → Service 경로를 검증한다.
+7. Gateway HTTP listener를 `Same`, HTTPS listener를 `gateway-access` Selector로 검증한다.
+
+### 마일스톤 완료 현황 (2026-08-16)
+- **Public Ingress & Gateway API**: Traefik Gateway `platform-gateway` 및 HTTP 308 HTTPS 강제 리다이렉트 활성화 (`aligneryoga.com`, `api.aligneryoga.com`).
+- **Automated SSL/TLS**: Cert-Manager ACME Let's Encrypt ClusterIssuer (`letsencrypt-production`) 및 Certificate (`aligner-api-tls`) 선언 완료.
+- **PostgreSQL HA Data Foundation**: CloudNativePG PostgreSQL 16 HA 클러스터(2 인스턴스, `enablePodAntiAffinity: true`) 배포 및 `aligner_prod`, `aligner_dev` 논리 DB 분리 완료.
+- **GitOps Multi-Environment**: `aligner` (3대 HA 운영) 및 `aligner-sandbox` (1대 테스트, 리소스 쿼터 적용, Tailscale VPN 전용) 매니페스트 구축 완료.
+- **Verification Drill**: `scripts/drills/verify-public-gateway.sh` 및 `make render` 통과.
 
 ### Cilium Gate
 
