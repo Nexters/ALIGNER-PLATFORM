@@ -1,0 +1,26 @@
+---
+# Phase 3 only: install the approved minimal Cilium CNI after all K3s servers join.
+- name: Read first-server kubeconfig
+  hosts: k3s_first_server
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read kubeconfig for local Cilium bootstrap
+      ansible.builtin.command:
+        argv:
+          - cat
+          - /etc/rancher/k3s/k3s.yaml
+      register: cilium_kubeconfig_contents
+      changed_when: false
+      no_log: true
+
+- name: Install minimal Cilium CNI
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    cilium_version: "1.20.0"
+    cluster_cidr: "10.42.0.0/16"
+    cilium_kubeconfig: "{{ hostvars[groups['k3s_first_server'][0]].cilium_kubeconfig_contents.stdout }}"
+  roles:
+    - cilium
