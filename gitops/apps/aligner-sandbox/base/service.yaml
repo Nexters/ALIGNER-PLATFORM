@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: aligner-sandbox-api
+  labels:
+    app.kubernetes.io/name: aligner-sandbox-api
+    app.kubernetes.io/part-of: aligner
+    app.kubernetes.io/component: api
+    app.kubernetes.io/environment: sandbox
+spec:
+  selector:
+    app.kubernetes.io/name: aligner-sandbox-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

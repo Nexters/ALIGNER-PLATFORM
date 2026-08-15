@@ -11,4 +11,5 @@ spec:
     name: letsencrypt-staging
     kind: ClusterIssuer
   dnsNames:
-    - api.aligner.example.invalid
+    - api.aligneryoga.com
+    - aligneryoga.com

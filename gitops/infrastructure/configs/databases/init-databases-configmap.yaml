@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aligner-db-init-sql
+  namespace: aligner-data
+data:
+  init-databases.sql: |
+    CREATE DATABASE aligner_dev;
+    CREATE USER aligner_dev_user;
+    GRANT ALL PRIVILEGES ON DATABASE aligner_dev TO aligner_dev_user;
+    ALTER DATABASE aligner_dev OWNER TO aligner_dev_user;

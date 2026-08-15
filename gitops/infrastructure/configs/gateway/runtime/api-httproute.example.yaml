@@ -7,11 +7,11 @@ metadata:
   namespace: aligner
 spec:
   parentRefs:
-    - name: platform
+    - name: platform-gateway
       namespace: traefik
       sectionName: https
   hostnames:
-    - api.aligner.example.invalid
+    - api.aligneryoga.com
   rules:
     - matches:
         - path:

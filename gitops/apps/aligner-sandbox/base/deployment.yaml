@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aligner-sandbox-api
+  labels:
+    app.kubernetes.io/name: aligner-sandbox-api
+    app.kubernetes.io/part-of: aligner
+    app.kubernetes.io/component: api
+    app.kubernetes.io/environment: sandbox
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aligner-sandbox-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: aligner-sandbox-api
+        app.kubernetes.io/part-of: aligner
+        app.kubernetes.io/component: api
+        app.kubernetes.io/environment: sandbox
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: registry.invalid/aligner-api@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://aligner-postgresql-rw.aligner-data.svc:5432/aligner_dev"
+            - name: DATABASE_URL
+              value: "postgresql://aligner-postgresql-rw.aligner-data.svc:5432/aligner_dev"
+            - name: DB_HOST
+              value: "aligner-postgresql-rw.aligner-data.svc"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "aligner_dev"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
