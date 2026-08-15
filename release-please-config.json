@@ -4,7 +4,7 @@
     ".": {
       "release-type": "simple",
       "package-name": "aligner-platform",
-      "initial-version": "1.0.0",
+      "initial-version": "0.1.0",
       "changelog-sections": [
         { "type": "feat", "section": "✨ 신규 인프라 기능 (Features)", "hidden": false },
         { "type": "fix", "section": "🐛 인프라 수정 (Fixes)", "hidden": false },
