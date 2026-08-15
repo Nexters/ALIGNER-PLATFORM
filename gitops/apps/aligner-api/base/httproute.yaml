@@ -1,5 +1,3 @@
-# RUNTIME GATE: the existing aligner Namespace must be labelled
-# gateway-access=true and the approved hostname must replace this placeholder.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -7,14 +5,13 @@ metadata:
   labels:
     app.kubernetes.io/name: aligner-api
     app.kubernetes.io/part-of: aligner
-    aligner.io/runtime-gate: namespace-label-and-public-hostname
 spec:
   parentRefs:
-    - name: platform
+    - name: platform-gateway
       namespace: traefik
       sectionName: https
   hostnames:
-    - api.aligner.example.invalid
+    - api.aligneryoga.com
   rules:
     - matches:
         - path:
