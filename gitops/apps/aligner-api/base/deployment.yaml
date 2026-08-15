@@ -41,8 +41,11 @@ spec:
                     app.kubernetes.io/name: aligner-api
       containers:
         - name: api
-          image: registry.invalid/aligner-api@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          image: ghcr.io/nexters/aligner-server:latest
           imagePullPolicy: IfNotPresent
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
           envFrom:
             - secretRef:
                 name: aligner-api-secrets
