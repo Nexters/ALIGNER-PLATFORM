@@ -1,0 +1,29 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: aligner-db
+  namespace: aligner-data
+spec:
+  instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.8
+  storage:
+    size: 10Gi
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+  bootstrap:
+    initdb:
+      database: aligner_prod
+      owner: aligner_prod_user
+      postInitApplicationSQLRefs:
+        configMapRefs:
+          - name: aligner-db-init-sql
+            key: init-databases.sql
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  monitoring:
+    enablePodMonitor: true
