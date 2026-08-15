@@ -30,7 +30,7 @@ spec:
     - name: barman-cloud.cloudnative-pg.io
       isWALArchiver: true
       parameters:
-        barmanObjectName: aligner-r2-backup
+        barmanObjectName: aligner-b2-backup
   resources:
     requests:
       cpu: 250m

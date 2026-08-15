@@ -1,12 +1,12 @@
 # K3s etcd 복구 드릴
 
-상태: **NOT EXECUTED**. 이 Runbook은 별도 격리 복구 환경에서만 사용하는 수동 절차와 증적 계약이다. 운영 환경을 대상으로 하지 않으며, 이 저장소에서 K3s 중지·`cluster-reset`·cloud/R2 조작 명령을 실행하지 않는다.
+상태: **NOT EXECUTED**. 이 Runbook은 별도 격리 복구 환경에서만 사용하는 수동 절차와 증적 계약이다. 운영 환경을 대상으로 하지 않으며, 이 저장소에서 K3s 중지·`cluster-reset`·cloud/B2 조작 명령을 실행하지 않는다.
 
 ## 시작 전 중단 조건
 
 다음 항목을 secret-free 드릴 기록에 준비한다. 누락 시 명령을 하나도 실행하지 않고 중단한다.
 
-1. 가장 최근 R2 snapshot의 식별자, 생성 UTC 시각, 바이트 크기, SHA-256 checksum
+1. 가장 최근 B2 `k3s-etcd/` snapshot의 식별자, 생성 UTC 시각, 바이트 크기, SHA-256 checksum
 2. **원본** K3s server token이 오프클러스터 보관소에 존재한다는 증적. token 값, 보관소 URL, credential은 기록하지 않는다.
 3. 운영과 다른 이름·네트워크·VM을 사용하는 명시적 격리 복구 환경
 4. 동일 K3s 버전과 server 설정, 승인 ID, 담당자·rollback 담당자
@@ -41,7 +41,7 @@ python3 scripts/validate_etcd_recovery.py --result /approved/evidence/issue-33.j
 {
   "issue": 33,
   "status": "PASS|FAIL",
-  "snapshot": {"r2_object": "redacted-id", "created_at_utc": "RFC3339 UTC", "size_bytes": 0, "checksum": "sha256:..."},
+  "snapshot": {"b2_object": "redacted-id", "created_at_utc": "RFC3339 UTC", "size_bytes": 0, "checksum": "sha256:..."},
   "original_token_off_cluster_evidence": {"storage": "off-cluster", "present": true},
   "production_environment": "production",
   "recovery_environment": "isolated-drill",

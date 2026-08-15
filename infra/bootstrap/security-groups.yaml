@@ -15,4 +15,4 @@ rules:
     - { port: 8472, protocol: UDP, source: "node_private_cidr", description: "Cilium VXLAN" }
 
   outbound:
-    - { port: 443, protocol: TCP, destination: "0.0.0.0/0", description: "이미지 레지스트리·Grafana Cloud·R2·S3·ACME" }
+    - { port: 443, protocol: TCP, destination: "0.0.0.0/0", description: "이미지 레지스트리·Grafana Cloud·B2·ACME" }

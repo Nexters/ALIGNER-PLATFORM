@@ -1,17 +1,17 @@
 apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore
 metadata:
-  name: aligner-r2-backup
+  name: aligner-b2-backup
   namespace: aligner-data
 spec:
   configuration:
-    destinationPath: s3://aligner-postgresql/
-    endpointURL: https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com
+    destinationPath: s3://<B2_BUCKET>/cnpg/
+    endpointURL: https://s3.<B2_REGION>.backblazeb2.com
     s3Credentials:
       accessKeyId:
-        name: aligner-postgresql-r2-writer
+        name: aligner-postgresql-b2-writer
         key: ACCESS_KEY_ID
       secretAccessKey:
-        name: aligner-postgresql-r2-writer
+        name: aligner-postgresql-b2-writer
         key: ACCESS_SECRET_KEY
   retentionPolicy: 35d

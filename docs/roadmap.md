@@ -15,7 +15,7 @@
 - VM당 복수 볼륨 지원 여부 확인
 - Gen2 웹 콘솔 또는 터미널 접속 지원 여부 확인
 - 노드 물리 분산 또는 가용 영역 지원 여부 확인
-- R2에서 K3s etcd-s3와 CNPG Barman을 각각 acceptance test
+- B2에서 K3s etcd-s3와 CNPG Barman을 각각 acceptance test
 - Infisical 무료 플랜의 Project, Identity, 사용자 한도 확인
 
 ### 준비
@@ -23,14 +23,14 @@
 - 실제 IP, credential, state, inventory의 Git 미추적 확인
 - `aligner-infra`, `aligner-runtime` Infisical Project 구성
 - K3s token 사전 생성과 오프클러스터 보관
-- R2 writer/restore/delete 자격증명 분리
+- B2 `k3s-etcd/`와 `cnpg/` prefix-scoped writer/restore 자격증명 분리
 - `gabiactl` sandbox에서 create → 재실행 No changes → inventory → destroy 시험
 
 ### Gate
 
 - 미확인 API를 추측해 구현하지 않는다.
 - 웹 콘솔 미지원 시 임시 `/32` SSH break-glass 절차를 확정한다.
-- R2 acceptance test 실패 시 프로덕션 백업 저장소를 AWS S3로 변경한다.
+- B2 acceptance test 실패 시 프로덕션 백업 저장소 전환을 중단하고 별도 아키텍처 결정을 연다.
 
 ## 1주차 — L1과 관리 경로
 
@@ -73,15 +73,15 @@ Gate 실패 시 프로덕션 데이터 투입 전에 Flannel로 클러스터를 
 1. Infisical Project와 Identity 경계를 검증한다.
 2. ESO, CloudNativePG, Redis, Alloy를 Argo CD로 배포한다.
 3. CNPG primary/standby가 서로 다른 노드에 있는지 확인한다.
-4. PostgreSQL WAL archive와 주간 base backup을 R2에 연결한다.
-5. K3s etcd snapshot을 6시간 주기로 R2에 연결한다.
+4. PostgreSQL WAL archive와 주간 base backup을 B2 `cnpg/`에 연결한다.
+5. K3s etcd snapshot을 6시간 주기로 B2 `k3s-etcd/`에 연결한다.
 6. API, JVM, Kubernetes, Cilium, CNPG 핵심 경보를 구성한다.
 
 ### DoD
 
 - ESO가 `aligner-infra`를 읽지 못함
 - K3s encryption hash가 세 server에서 일치
-- R2 writer가 객체를 삭제하지 못함
+- B2 writer가 자기 prefix 밖의 객체를 읽거나 쓸 수 없음
 - WAL archive 실패와 etcd snapshot 실패 경보가 동작
 - Grafana Cloud 사용량이 무료 티어 예산 안에 있음
 
@@ -103,13 +103,13 @@ Gate 실패 시 프로덕션 데이터 투입 전에 Flannel로 클러스터를 
 
 - 6시간 etcd snapshot
 - 연속 WAL archive와 주간 base backup
-- 월간 AWS S3 암호화 사본
+- B2 `k3s-etcd/`와 `cnpg/` 보존 정책 검증
 - Grafana Cloud 경보
 - Argo CD drift self-heal
 
 ### 정기 작업
 
-- 월 1회: 백업 최신 시각, S3 체크섬, credential 만료 확인
+- 월 1회: B2 백업 최신 시각, 객체 checksum, credential 만료 확인
 - 분기 1회: PostgreSQL PITR 또는 etcd 복구를 번갈아 수행
 - K3s/Cilium 업그레이드 전: snapshot과 rollback 경로 확인 후 한 노드씩 적용
 - 팀원·장비 변경 시: Tailscale 사용자·device 폐기
@@ -119,16 +119,16 @@ Gate 실패 시 프로덕션 데이터 투입 전에 Flannel로 클러스터를 
 1. `gabiactl apply`로 별도 L1 환경을 재현한다.
 2. Ansible로 Tailscale, K3s, Cilium을 구성한다.
 3. Argo CD root application으로 플랫폼과 앱을 복원한다.
-4. R2에서 PostgreSQL과 etcd를 복구한다.
+4. B2에서 PostgreSQL과 etcd를 복구한다.
 5. External LB, DNS, TLS 경로를 검증한다.
 6. 전체 RTO/RPO와 수동 개입을 기록한다.
 7. 유료 지속, 타 클라우드 이전, 종료 중 하나를 결정한다.
-8. 종료 시 최종 백업을 R2와 AWS S3에 보관한 뒤 의존성 역순으로 리소스를 삭제한다.
+8. 종료 시 B2의 최종 백업을 확인한 뒤 의존성 역순으로 리소스를 삭제한다.
 
 ### 최종 DoD
 
 - L1 → L2 → L3 전체 재구축 성공
 - PostgreSQL과 etcd 복구 및 데이터 정합성 확인
 - 최종 RTO/RPO 기록
-- 백업 2개 공급자의 체크섬 확인
+- B2 백업 객체 checksum 확인
 - 비용 실적과 다음 환경 결정 기록

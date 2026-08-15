@@ -31,30 +31,30 @@ Ansible inventory와 collection requirements의 변경은 이 문서의 범위 �
 - [Cilium v1.20.0 공식 릴리스](https://github.com/cilium/cilium/releases/tag/v1.20.0)
 - [Cilium 1.20 K3s 설치](https://docs.cilium.io/en/stable/installation/k3s/)
 
-## R2 acceptance Gate
+## B2 acceptance Gate
 
-R2는 S3 API endpoint `https://<account-id>.r2.cloudflarestorage.com`와 region `auto`를
-제공한다. K3s는 S3 endpoint, region, bucket, folder, access key/secret key 및 lookup
-type을 설정할 수 있다. 이는 설정 가능성만 뒷받침하며, 이 저장소에서는 R2 etcd snapshot과
-CNPG 복구를 아직 실행하지 않았다.
+Backblaze B2는 HTTPS S3-compatible API endpoint를 제공한다. K3s는 S3 endpoint, region,
+bucket, folder, access key/secret key 및 lookup type을 설정할 수 있다. 이는 설정 가능성만
+뒷받침하며, 이 저장소에서는 B2 etcd snapshot과 CNPG 복구를 아직 실행하지 않았다.
 
-테스트 전용 bucket과 분리된 writer/restore 자격증명으로 다음을 수행한다. 자격증명 값, account
-ID, bucket 이름, snapshot 내용은 Git·명령 기록에 넣지 않는다.
+단일 private B2 bucket 안에서 `k3s-etcd/`와 `cnpg/` prefix를 분리하고, prefix-scoped
+writer/restore application key로 다음을 수행한다. 자격증명 값, endpoint, bucket 이름,
+snapshot 내용은 Git·명령 기록에 넣지 않는다.
 
-1. K3s server 3대에 `--etcd-s3`, R2 endpoint, `--etcd-s3-region=auto`, test bucket/folder와
-   `--etcd-s3-bucket-lookup-type=path`를 설정한다. snapshot 생성 뒤 R2에 객체가 생기는지
+1. K3s server 3대에 `--etcd-s3`, B2 endpoint, B2 region, bucket/folder `k3s-etcd/`와
+   `--etcd-s3-bucket-lookup-type=path`를 설정한다. snapshot 생성 뒤 B2에 객체가 생기는지
    확인하고, 별도 복구 환경에서 같은 K3s token으로 `--cluster-reset --cluster-reset-restore-path`
    복구를 실행한다. 세 member Ready와 시험 데이터의 존재를 확인한다.
 2. CNPG Operator `1.30.0`과 Barman Cloud Plugin `0.14.0`을 사용해 test cluster의 base backup과 WAL archive를
-   R2에 저장한다. 새 cluster의 `bootstrap.recovery`와 별도 `externalClusters` source로 PITR을
+   B2 `cnpg/`에 저장한다. 새 cluster의 `bootstrap.recovery`와 별도 `externalClusters` source로 PITR을
    수행한다. 복구 전용 `ObjectStore`를 만들고 `externalClusters.plugin.parameters`의
    `barmanObjectName`이 이를 참조하게 하며, source별 고유 `serverName`을 사용한다. source와
    recovery cluster는 같은 설정을 재사용하지 않고 시험 데이터 정합성을 확인한다.
-3. 둘 중 하나라도 실패하면 R2를 프로덕션 backup store로 사용하지 않는다. 원인은 endpoint,
-   region/lookup type, TLS, IAM permission, Barman plugin 버전으로 분리해 기록하고 중단한다.
-   AWS S3도 동일한 acceptance test와 별도 승인을 통과한 뒤에만 대안으로 사용할 수 있다.
+3. 둘 중 하나라도 실패하면 B2를 프로덕션 backup store로 사용하지 않는다. 원인은 endpoint,
+   region/lookup type, TLS, application key permission, Barman plugin 버전으로 분리해 기록하고 중단한다.
+   대체 저장소 전환은 별도 아키텍처 결정과 acceptance test를 거친다.
 
-- [Cloudflare R2 S3 API compatibility](https://developers.cloudflare.com/r2/api/s3/api/)
+- [Backblaze B2 S3-compatible API](https://www.backblaze.com/docs/cloud-storage-call-the-s3-compatible-api)
 - [K3s server S3 snapshot options](https://docs.k3s.io/cli/server)
 - [CloudNativePG Barman Cloud Plugin requirements](https://cloudnative-pg.io/plugin-barman-cloud/docs/intro/)
 - [CloudNativePG 1.30 recovery](https://cloudnative-pg.io/docs/1.30/recovery/)

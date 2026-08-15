@@ -15,10 +15,10 @@ def passing_result():
         "issue": 35, "status": "PASS",
         "environment": {"name": "rebuild-issue-35", "classification": "isolated-rebuild", "cost_limit_krw": 100000, "started_at_utc": "2026-08-12T00:00:00Z", "ended_at_utc": "2026-08-12T01:00:00Z", "deletion_owner": "platform-oncall"},
         "phases": {"l1_gabiactl": True, "l2_tailscale_ansible_k3s_cilium": True, "l3_argo_root": True},
-        "restores": {item: {"r2_checksum": checksum, "restored_checksum": checksum, "checksum_match": True} for item in ("etcd", "postgresql")},
+        "restores": {item: {"b2_checksum": checksum, "restored_checksum": checksum, "checksum_match": True} for item in ("etcd", "postgresql")},
         "public_validation": {item: True for item in ("load_balancer", "dns", "tls", "login", "core_write")},
         "outcomes": {"total_rto_seconds": 3600, "total_rpo_seconds": 60, "manual_actions": ["approval"], "failures": [], "actual_cost_krw": 50000},
-        "shutdown": {"final_backups": {item: {"r2_checksum": checksum, "aws_s3_checksum": checksum} for item in ("etcd", "postgresql")}, "deletion_order": ["apps", "platform", "cluster", "load_balancer", "servers", "network"], "cleanup": {item: True for item in ("apps", "platform", "cluster", "load_balancer", "servers", "network")}, "billing_zero_evidence": {"gabia_console": True, "gabia_billing": True, "residual_billable_resources": 0}},
+        "shutdown": {"final_backups": {item: {"b2_checksum": checksum} for item in ("etcd", "postgresql")}, "deletion_order": ["apps", "platform", "cluster", "load_balancer", "servers", "network"], "cleanup": {item: True for item in ("apps", "platform", "cluster", "load_balancer", "servers", "network")}, "billing_zero_evidence": {"gabia_console": True, "gabia_billing": True, "residual_billable_resources": 0}},
     }
 
 
@@ -35,19 +35,19 @@ class FullRebuildResultTest(unittest.TestCase):
         result["phases"]["l3_argo_root"] = False
         self.assertIn("all rebuild phases must be completed", MODULE.validate(result))
 
-    def test_pass_requires_restore_and_two_provider_checksums(self):
+    def test_pass_requires_restore_and_b2_checksum(self):
         result = passing_result()
         result["restores"]["etcd"]["restored_checksum"] = "sha256:different"
-        self.assertIn("restores.etcd must prove matching R2 and restored SHA-256 checksums", MODULE.validate(result))
+        self.assertIn("restores.etcd must prove matching B2 and restored SHA-256 checksums", MODULE.validate(result))
         result = passing_result()
-        result["shutdown"]["final_backups"]["postgresql"]["aws_s3_checksum"] = "sha256:different"
-        self.assertIn("shutdown.final_backups.postgresql must prove matching R2 and AWS S3 SHA-256 checksums", MODULE.validate(result))
+        result["shutdown"]["final_backups"]["postgresql"].pop("b2_checksum")
+        self.assertIn("shutdown.final_backups.postgresql must prove a B2 SHA-256 checksum", MODULE.validate(result))
 
     def test_pass_rejects_short_or_malformed_checksum(self):
         for value in ("sha256:abc", "sha512:" + "a" * 64):
             result = passing_result()
-            result["restores"]["etcd"]["r2_checksum"] = value
-            self.assertIn("restores.etcd must prove matching R2 and restored SHA-256 checksums", MODULE.validate(result))
+            result["restores"]["etcd"]["b2_checksum"] = value
+            self.assertIn("restores.etcd must prove matching B2 and restored SHA-256 checksums", MODULE.validate(result))
 
     def test_pass_requires_order_cleanup_and_zero_billing(self):
         result = passing_result()

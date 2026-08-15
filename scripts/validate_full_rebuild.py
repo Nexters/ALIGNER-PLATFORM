@@ -83,9 +83,9 @@ def validate(result):
     else:
         for item in restore_fields:
             record = restores.get(item)
-            expected = {"r2_checksum", "restored_checksum", "checksum_match"}
-            if not isinstance(record, dict) or set(record) != expected or not checksum(record.get("r2_checksum")) or not checksum(record.get("restored_checksum")) or record.get("checksum_match") is not True or record.get("r2_checksum") != record.get("restored_checksum"):
-                errors.append("restores." + item + " must prove matching R2 and restored SHA-256 checksums")
+            expected = {"b2_checksum", "restored_checksum", "checksum_match"}
+            if not isinstance(record, dict) or set(record) != expected or not checksum(record.get("b2_checksum")) or not checksum(record.get("restored_checksum")) or record.get("checksum_match") is not True or record.get("b2_checksum") != record.get("restored_checksum"):
+                errors.append("restores." + item + " must prove matching B2 and restored SHA-256 checksums")
 
     public = result.get("public_validation")
     public_fields = {"load_balancer", "dns", "tls", "login", "core_write"}
@@ -110,9 +110,9 @@ def validate(result):
         else:
             for item in restore_fields:
                 record = final_backups.get(item)
-                expected = {"r2_checksum", "aws_s3_checksum"}
-                if not isinstance(record, dict) or set(record) != expected or not checksum(record.get("r2_checksum")) or record.get("r2_checksum") != record.get("aws_s3_checksum"):
-                    errors.append("shutdown.final_backups." + item + " must prove matching R2 and AWS S3 SHA-256 checksums")
+                expected = {"b2_checksum"}
+                if not isinstance(record, dict) or set(record) != expected or not checksum(record.get("b2_checksum")):
+                    errors.append("shutdown.final_backups." + item + " must prove a B2 SHA-256 checksum")
         if shutdown.get("deletion_order") != SHUTDOWN_ORDER:
             errors.append("shutdown.deletion_order must be apps, platform, cluster, load_balancer, servers, network")
         cleanup = shutdown.get("cleanup")

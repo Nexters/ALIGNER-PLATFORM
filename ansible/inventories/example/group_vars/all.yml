@@ -5,16 +5,16 @@
 k3s_version: "v1.36.3+k3s1"
 cilium_version: "1.20.0"
 
-# K3s는 mutation 전에 false gate와 token/R2 변수를 모두 검사한다.
+# K3s는 mutation 전에 false gate와 token/B2 변수를 모두 검사한다.
 # 비밀값은 private inventory 또는 runtime secret injection으로만 제공한다.
 k3s_runtime_approved: false
 # k3s_token: "<runtime-injected>"
 # k3s_etcd_s3_access_key: "<runtime-injected>"
 # k3s_etcd_s3_secret_key: "<runtime-injected>"
-k3s_etcd_s3_endpoint: "<account-id>.r2.cloudflarestorage.com"
-k3s_etcd_s3_bucket: "<r2-bucket>"
-k3s_etcd_s3_region: "auto"
-k3s_etcd_s3_folder: "hot/etcd"
+k3s_etcd_s3_endpoint: "s3.<b2-region>.backblazeb2.com"
+k3s_etcd_s3_bucket: "<b2-bucket>"
+k3s_etcd_s3_region: "<b2-region>"
+k3s_etcd_s3_folder: "k3s-etcd"
 
 # K3s cluster-cidr 과 Cilium clusterPoolIPv4PodCIDRList 는 반드시 일치해야 한다.
 # 사후 변경이 불가능하므로 Day 1 에 확정한다.
