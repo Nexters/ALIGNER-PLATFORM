@@ -10,7 +10,7 @@
 ```text
 - 가비아 ID·비밀번호·세션 토큰
 - GitHub PAT · GitHub App Private Key
-- R2 · AWS · Grafana Cloud Access Token
+- B2 · Grafana Cloud Access Token
 - Tailscale auth key · API token
 - K3s server token
 - kubeconfig client certificate · private key
@@ -24,7 +24,7 @@
 ## Kubernetes 시크릿 경계
 
 `aligner-runtime` Infisical project의 읽기 전용 Machine Identity만 `aligner` namespace의
-`infisical-runtime` SecretStore가 사용한다. `aligner-infra`와 가비아·R2 삭제·break-glass
+`infisical-runtime` SecretStore가 사용한다. `aligner-infra`와 가비아·B2 삭제·break-glass
 자격증명은 이 identity와 클러스터에 주입하지 않는다. ESO는 `aligner` namespace 범위 RBAC로
 실행하며 ClusterSecretStore와 PushSecret을 처리하지 않는다.
 

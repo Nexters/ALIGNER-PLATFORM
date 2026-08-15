@@ -8,8 +8,8 @@ Accepted with Gate
 
 - CloudNativePG `instances: 2`를 서로 다른 노드의 local-path 볼륨에 배치한다.
 - 비동기 복제와 `-rw` Service를 기본으로 사용한다.
-- R2에 연속 WAL, 주간 base backup, 6시간 etcd snapshot을 저장한다.
-- AWS S3에는 월간 암호화 사본과 종료 시 최종 사본을 저장한다.
+- private Backblaze B2 버킷 하나에 `k3s-etcd/` 6시간 etcd snapshot과 `cnpg/` 연속 WAL·주간 base backup을 저장한다.
+- K3s와 CNPG는 서로 다른 prefix-scoped application key를 사용한다. 보존에 필요한 list/delete 권한은 acceptance test로 확인한 뒤에만 부여한다.
 
 ## 한계
 
@@ -20,4 +20,4 @@ local-path는 노드에 고정된다. primary 노드 영구 유실 시 standby �
 - primary 노드 정지 후 Write RTO 60초 이내
 - 별도 Cluster PITR과 데이터 정합성 확인
 - 원본 K3s token을 사용한 etcd snapshot 복구
-- R2 writer의 삭제 거부와 AWS S3 사본 체크섬 확인
+- B2 prefix별 writer 권한, 보존, 객체 checksum 확인

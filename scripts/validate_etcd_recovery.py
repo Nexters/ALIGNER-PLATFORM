@@ -55,8 +55,8 @@ def validate(result):
         errors.append("missing required fields: " + ",".join(sorted(missing)))
 
     snapshot = result.get("snapshot")
-    if not isinstance(snapshot, dict) or not isinstance(snapshot.get("r2_object"), str) or not isinstance(snapshot.get("created_at_utc"), str) or not is_non_negative_number(snapshot.get("size_bytes")) or not isinstance(snapshot.get("checksum"), str):
-        errors.append("snapshot must contain r2_object, created_at_utc, non-negative size_bytes, and checksum")
+    if not isinstance(snapshot, dict) or not isinstance(snapshot.get("b2_object"), str) or not isinstance(snapshot.get("created_at_utc"), str) or not is_non_negative_number(snapshot.get("size_bytes")) or not isinstance(snapshot.get("checksum"), str):
+        errors.append("snapshot must contain b2_object, created_at_utc, non-negative size_bytes, and checksum")
 
     token = result.get("original_token_off_cluster_evidence")
     if not isinstance(token, dict) or token.get("storage") != "off-cluster" or token.get("present") is not True or set(token) != {"storage", "present"}:

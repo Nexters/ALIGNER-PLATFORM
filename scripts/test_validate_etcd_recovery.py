@@ -12,7 +12,7 @@ SPEC.loader.exec_module(MODULE)
 def passing_result():
     return {
         "issue": 33, "status": "PASS", "started_at_utc": "2026-08-12T00:00:00Z",
-        "snapshot": {"r2_object": "redacted-snapshot-id", "created_at_utc": "2026-08-11T18:00:00Z", "size_bytes": 1048576, "checksum": "sha256:redacted"},
+        "snapshot": {"b2_object": "redacted-snapshot-id", "created_at_utc": "2026-08-11T18:00:00Z", "size_bytes": 1048576, "checksum": "sha256:redacted"},
         "original_token_off_cluster_evidence": {"storage": "off-cluster", "present": True},
         "production_environment": "production", "recovery_environment": "drill-isolated",
         "first_server_restore": {"manual_approval": True, "k3s_stopped": True, "cluster_reset_restore_manual": True},

@@ -49,7 +49,7 @@ ssh ubuntu@k3s-03 true
 kubectl --server=https://k3s-01:6443 get --raw=/readyz
 ```
 
-`make site`는 승인값과 K3s/R2 시크릿을 담은 Git 밖의 0600 runtime vars 파일을
+`make site`는 승인값과 K3s/B2 시크릿을 담은 Git 밖의 0600 runtime vars 파일을
 `ALIGNER_RUNTIME_VARS_FILE`로 요구한다. `make site`, `make verify`, `make verify-cilium`은 private topology inventory 뒤에
 `ansible/inventories/tailscale/hosts.yml`을 합성해 `ansible_host`만 MagicDNS 이름으로
 덮어쓴다. 방화벽 적용은 각 노드에서 Tailscale 신원과 SSH를 다시 확인한 후

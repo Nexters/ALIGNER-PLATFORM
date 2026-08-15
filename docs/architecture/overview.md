@@ -42,8 +42,9 @@ Cluster
   └─ Grafana Alloy → Grafana Cloud
 
 Backup
-  ├─ Cloudflare R2: etcd snapshot, PostgreSQL base backup/WAL
-  └─ AWS S3: 월간 암호화 사본과 종료 시 최종 사본
+  └─ Backblaze B2 private bucket
+      ├─ k3s-etcd/: etcd snapshot
+      └─ cnpg/: PostgreSQL base backup/WAL
 ```
 
 ## 노드와 스토리지
@@ -117,10 +118,9 @@ VM당 데이터 볼륨 두 개의 attach·재조회·detach가 확인되지 않�
 
 - Alloy는 필요한 메트릭과 로그만 Grafana Cloud로 전송한다.
 - 라벨 카디널리티와 무료 티어 사용량을 경보로 관리한다.
-- etcd snapshot은 6시간마다 R2에 저장한다.
-- PostgreSQL은 연속 WAL archive와 주간 base backup을 R2에 저장한다.
-- R2 writer에는 삭제 권한을 주지 않고 보존 정책을 적용한다.
-- 월 1회 R2 백업의 암호화 사본을 AWS S3에 복제한다.
+- etcd snapshot은 6시간마다 B2 `k3s-etcd/`에 저장한다.
+- PostgreSQL은 연속 WAL archive와 주간 base backup을 B2 `cnpg/`에 저장한다.
+- K3s와 CNPG는 서로 다른 B2 application key를 사용한다. 보존에 필요한 권한은 acceptance test 뒤에 최소 범위로 부여한다.
 - 백업 성공 로그는 복구 증거가 아니다. 복구 시험은 [로드맵](../roadmap.md)의 Gate를 따른다.
 
 ## 자동화 경계
@@ -152,7 +152,7 @@ Tailscale을 설치한다. 세 노드의 MagicDNS SSH를 검증한 후 Tailscale
 - Cilium connectivity와 NetworkPolicy deny/allow 성공
 - VM 한 대 강제 정지 후 필수 Pod Pending 0과 서비스 회복
 - CNPG node-loss Write RTO 60초 이내
-- R2 PostgreSQL PITR 성공과 데이터 정합성 확인
+- B2 PostgreSQL PITR 성공과 데이터 정합성 확인
 - etcd snapshot과 원본 K3s token으로 복구 성공
 - Argo CD self-heal과 HTTPRoute TLS/host/path 검증
 - 실제 자원 사용량으로 request/limit 갱신

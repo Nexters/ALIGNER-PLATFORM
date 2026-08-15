@@ -13,7 +13,7 @@
       - groups['k3s_first_server'] | length == 1
       - groups['k3s_first_server'][0] in groups['k3s_servers']
       - inventory_hostname in groups['k3s_servers']
-    fail_msg: K3s runtime approval, fixed version, token, and R2 snapshot settings are required.
+    fail_msg: K3s runtime approval, fixed version, token, and B2 snapshot settings are required.
   no_log: true
 
 - name: Refuse an unsupported K3s binary architecture
