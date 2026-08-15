@@ -10,14 +10,14 @@ spec:
   listeners:
     - name: http
       protocol: HTTP
-      port: 8000
+      port: 80
       allowedRoutes:
         namespaces:
           # HTTP는 이 namespace의 redirect route만 받는다.
           from: Same
     - name: https
       protocol: HTTPS
-      port: 8443
+      port: 443
       tls:
         mode: Terminate
         certificateRefs:
