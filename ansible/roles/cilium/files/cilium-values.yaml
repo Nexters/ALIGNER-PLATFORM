@@ -36,6 +36,10 @@ hubble:
   ui: {enabled: false}
   metrics:
     enableOpenMetrics: true
+    enabled:
+      - dns
+      - drop
+      - policy:sourceContext=workload-name|reserved-identity;destinationContext=workload-name|reserved-identity
 
 encryption:
   enabled: false                   # 가비아 사설망 테넌트 격리 확인(문의 B3) 후 결정

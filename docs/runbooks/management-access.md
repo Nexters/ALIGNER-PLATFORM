@@ -3,8 +3,9 @@
 ## Tailnet 정책
 
 Tailscale 콘솔 JSON editor의 정본은 [tailscale-policy.hujson](tailscale-policy.hujson)이다.
-`tag:aligner-prod`는 admin만 부여하고, 해당 서버의 OpenSSH 22/TCP와 K3s API
-6443/TCP만 허용한다. Tailscale SSH는 사용하지 않는다.
+`group:aligner-operators`에는 현재 두 운영자만 넣고, 이 그룹만 `tag:aligner-prod`를
+소유하거나 해당 서버의 OpenSSH 22/TCP와 K3s API 6443/TCP에 접근할 수 있다. Tailnet
+admin 권한은 이 서버 접근 권한을 대신하지 않는다. Tailscale SSH는 사용하지 않는다.
 
 ## 최초 부트스트랩
 

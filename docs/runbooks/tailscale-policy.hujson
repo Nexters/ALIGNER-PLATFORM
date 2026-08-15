@@ -1,10 +1,16 @@
 {
+  "groups": {
+    "group:aligner-operators": [
+      "move-hoon@github",
+      "hyxklee@github",
+    ],
+  },
   "tagOwners": {
-    "tag:aligner-prod": ["autogroup:admin"],
+    "tag:aligner-prod": ["group:aligner-operators"],
   },
   "grants": [
     {
-      "src": ["autogroup:admin"],
+      "src": ["group:aligner-operators"],
       "dst": ["tag:aligner-prod"],
       "ip": ["tcp:22", "tcp:6443"],
     },

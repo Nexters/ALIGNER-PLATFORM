@@ -17,10 +17,8 @@ spec:
       hostname: api.aligner.example.invalid
       allowedRoutes:
         namespaces:
-          from: Selector
-          selector:
-            matchLabels:
-              gateway-access: "true"
+          # HTTP는 이 namespace의 redirect route만 받는다.
+          from: Same
     - name: https
       protocol: HTTPS
       port: 443

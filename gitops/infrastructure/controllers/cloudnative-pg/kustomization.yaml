@@ -4,3 +4,9 @@ resources:
   # Immutable upstream commits for CNPG v1.30.0 and Barman Cloud Plugin v0.14.0.
   - https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/4b5e244a7d031f67e025c83c1555e7726ecbbfa1/releases/cnpg-1.30.0.yaml
   - https://raw.githubusercontent.com/cloudnative-pg/plugin-barman-cloud/1e13020fe5f09fd8fc29ea03828f7b61375b3721/manifest.yaml
+images:
+  # The upstream v0.14.0 manifest references testing:main. Pin the released OCI
+  # index so GitOps reconciliation cannot select a mutable test image.
+  - name: ghcr.io/cloudnative-pg/plugin-barman-cloud-testing
+    newName: ghcr.io/cloudnative-pg/plugin-barman-cloud
+    digest: sha256:823a8893690980ba5830bbbb11196a35f695b0488db7d846abc33baebf32417c
