@@ -31,6 +31,12 @@ class TailscaleFirewallContractTest(unittest.TestCase):
         self.assertIn("firewall_k3s_node_private_ips | join", self.template)
         self.assertNotIn("ip saddr {{ firewall_vpc_cidr }}", self.template)
 
+    def test_template_allows_pods_to_reach_the_kubernetes_api(self) -> None:
+        self.assertIn(
+            'ip saddr {{ firewall_pod_cidr }} tcp dport 6443 accept',
+            self.template,
+        )
+
     def test_interface_derivation_ignores_non_mapping_ipv4_facts(self) -> None:
         self.assertEqual(self.tasks.count("selectattr('value.ipv4', 'mapping')"), 1)
         self.assertNotIn("firewall_public_interfaces", self.tasks)
