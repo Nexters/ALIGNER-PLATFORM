@@ -19,6 +19,7 @@ render:
 	done
 	bash gitops/infrastructure/configs/secret-stores/tests/assert-ordering.sh
 	bash gitops/infrastructure/configs/gateway/tests/assert-attachment-boundary.sh
+	bash gitops/infrastructure/configs/cluster-services/tests/assert-tailscale-boundary.sh
 	@echo "모든 overlay 렌더 성공"
 
 bootstrap-access:

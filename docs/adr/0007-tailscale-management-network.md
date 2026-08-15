@@ -13,7 +13,9 @@ Accepted
 key를 사용한다.
 
 노드 간 K3s·etcd·CNI 트래픽은 가비아 VPC 사설 IP를 유지한다. Tailscale은 운영자
-접근과 클러스터 API 관리에만 사용한다.
+접근과 클러스터 API 관리에만 사용한다. Argo CD UI는 `tag:aligner-argocd`를 단
+Tailscale HA ProxyGroup으로 노출하며, `group:aligner-operators`만 443/TCP로 접근한다.
+이 경로는 공인 LB·DNS·cert-manager를 사용하지 않는다.
 
 ## 근거
 

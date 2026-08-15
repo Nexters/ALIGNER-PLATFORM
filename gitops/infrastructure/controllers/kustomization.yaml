@@ -4,6 +4,10 @@ resources:
   - cloudnative-pg
   - alloy
   - external-secrets/application.yaml
+  - tailscale-external-secrets.application.yaml
+  - tailscale-bootstrap.application.yaml
+  - tailscale-operator.application.yaml
+  - tailscale-argocd-ui.application.yaml
   - gateway-api
   - cert-manager
   - traefik

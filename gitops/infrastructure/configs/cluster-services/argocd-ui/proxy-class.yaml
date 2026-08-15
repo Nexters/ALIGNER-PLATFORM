@@ -1,0 +1,16 @@
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: aligner-argocd-ui
+spec:
+  statefulSet:
+    pod:
+      labels:
+        app.kubernetes.io/name: aligner-argocd-tailnet
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: aligner-argocd-tailnet
+              topologyKey: kubernetes.io/hostname

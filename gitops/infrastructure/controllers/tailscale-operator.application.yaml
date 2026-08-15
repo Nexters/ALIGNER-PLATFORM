@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tailscale-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: https://pkgs.tailscale.com/helmcharts
+    chart: tailscale-operator
+    targetRevision: 1.98.4
+    helm:
+      releaseName: tailscale-operator
+      values: |
+        operatorConfig:
+          defaultTags:
+            - tag:aligner-k8s-operator
+          hostname: aligner-k8s-operator
+          image:
+            tag: v1.98.4
+            pullPolicy: IfNotPresent
+        proxyConfig:
+          image:
+            tag: v1.98.4
+          defaultTags: tag:aligner-k8s
+        apiServerProxyConfig:
+          mode: "false"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tailscale
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+        pod-security.kubernetes.io/enforce-version: latest
