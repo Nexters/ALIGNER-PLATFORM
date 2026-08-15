@@ -1,0 +1,25 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: aligner-sandbox-api
+  namespace: aligner-sandbox
+  labels:
+    app.kubernetes.io/name: aligner-sandbox-api
+    app.kubernetes.io/part-of: aligner
+    app.kubernetes.io/component: api
+    app.kubernetes.io/environment: sandbox
+spec:
+  parentRefs:
+    - name: platform-gateway
+      namespace: traefik
+      sectionName: https
+  hostnames:
+    - test.aligneryoga.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      backendRefs:
+        - name: aligner-sandbox-api
+          port: 8080

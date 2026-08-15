@@ -13,3 +13,4 @@ spec:
   dnsNames:
     - api.aligneryoga.com
     - aligneryoga.com
+    - test.aligneryoga.com
