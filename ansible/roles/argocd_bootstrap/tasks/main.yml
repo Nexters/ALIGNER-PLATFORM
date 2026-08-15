@@ -18,7 +18,7 @@
 
 - name: Check whether the Argo CD namespace exists
   ansible.builtin.command:
-    argv: [kubectl, --kubeconfig, "{{ argocd_bootstrap_kubeconfig }}", get, namespace, argocd]
+    argv: ["{{ argocd_bootstrap_k3s_command }}", kubectl, --kubeconfig, "{{ argocd_bootstrap_kubeconfig }}", get, namespace, argocd]
   changed_when: false
   failed_when: false
   register: argocd_bootstrap_namespace
@@ -33,13 +33,14 @@
 
 - name: Create the Argo CD namespace
   ansible.builtin.command:
-    argv: [kubectl, --kubeconfig, "{{ argocd_bootstrap_kubeconfig }}", create, namespace, argocd]
+    argv: ["{{ argocd_bootstrap_k3s_command }}", kubectl, --kubeconfig, "{{ argocd_bootstrap_kubeconfig }}", create, namespace, argocd]
   when: argocd_bootstrap_namespace.rc != 0
   changed_when: true
 
 - name: Install Argo CD CRDs and controllers
   ansible.builtin.command:
     argv:
+      - "{{ argocd_bootstrap_k3s_command }}"
       - kubectl
       - --kubeconfig
       - "{{ argocd_bootstrap_kubeconfig }}"
@@ -54,6 +55,7 @@
 - name: Wait for the Argo CD Application CRD
   ansible.builtin.command:
     argv:
+      - "{{ argocd_bootstrap_k3s_command }}"
       - kubectl
       - --kubeconfig
       - "{{ argocd_bootstrap_kubeconfig }}"
@@ -66,6 +68,7 @@
 - name: Wait for the Argo CD API server
   ansible.builtin.command:
     argv:
+      - "{{ argocd_bootstrap_k3s_command }}"
       - kubectl
       - --kubeconfig
       - "{{ argocd_bootstrap_kubeconfig }}"
@@ -86,6 +89,7 @@
 - name: Enable Helm chart rendering for Argo CD Kustomize applications
   ansible.builtin.command:
     argv:
+      - "{{ argocd_bootstrap_k3s_command }}"
       - kubectl
       - --kubeconfig
       - "{{ argocd_bootstrap_kubeconfig }}"
@@ -95,9 +99,39 @@
       - "{{ argocd_bootstrap_kustomize_config_path }}"
   changed_when: false
 
+- name: Restart the Argo CD application controller for Kustomize options
+  ansible.builtin.command:
+    argv:
+      - "{{ argocd_bootstrap_k3s_command }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ argocd_bootstrap_kubeconfig }}"
+      - -n
+      - argocd
+      - rollout
+      - restart
+      - statefulset/argocd-application-controller
+  changed_when: false
+
+- name: Wait for the Argo CD application controller
+  ansible.builtin.command:
+    argv:
+      - "{{ argocd_bootstrap_k3s_command }}"
+      - kubectl
+      - --kubeconfig
+      - "{{ argocd_bootstrap_kubeconfig }}"
+      - -n
+      - argocd
+      - rollout
+      - status
+      - statefulset/argocd-application-controller
+      - --timeout=300s
+  changed_when: false
+
 - name: Restart the Argo CD repository server for Kustomize options
   ansible.builtin.command:
     argv:
+      - "{{ argocd_bootstrap_k3s_command }}"
       - kubectl
       - --kubeconfig
       - "{{ argocd_bootstrap_kubeconfig }}"
@@ -111,6 +145,7 @@
 - name: Wait for the Argo CD repository server
   ansible.builtin.command:
     argv:
+      - "{{ argocd_bootstrap_k3s_command }}"
       - kubectl
       - --kubeconfig
       - "{{ argocd_bootstrap_kubeconfig }}"
@@ -131,6 +166,7 @@
 - name: Apply the root Application after its CRD is established
   ansible.builtin.command:
     argv:
+      - "{{ argocd_bootstrap_k3s_command }}"
       - kubectl
       - --kubeconfig
       - "{{ argocd_bootstrap_kubeconfig }}"
