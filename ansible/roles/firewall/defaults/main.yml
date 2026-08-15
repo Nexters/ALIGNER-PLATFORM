@@ -9,6 +9,7 @@ firewall_tailscale_access_proven: false
 firewall_tailscale_interface: tailscale0
 firewall_tailscale_server_tag: "tag:aligner-prod"
 firewall_vpc_cidr: "10.20.0.0/16"
+firewall_pod_cidr: "10.42.0.0/16"
 firewall_gabia_lb_private_ip: ""
 # K3s is installed after this role. Supply a read-only API command only when an
 # existing API is already reachable through Tailscale; otherwise #22 verifies it.
