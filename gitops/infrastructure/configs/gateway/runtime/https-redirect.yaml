@@ -5,10 +5,11 @@ metadata:
   namespace: traefik
 spec:
   parentRefs:
-    - name: platform
+    - name: platform-gateway
       sectionName: http
   hostnames:
-    - api.aligner.example.invalid
+    - api.aligneryoga.com
+    - aligneryoga.com
   rules:
     - filters:
         - type: RequestRedirect
