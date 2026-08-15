@@ -77,7 +77,8 @@ VM당 데이터 볼륨 두 개의 attach·재조회·detach가 확인되지 않�
 ### 관리 트래픽
 
 - Tailscale Personal의 `tag:aligner-prod`로 세 노드를 등록하고 MagicDNS로 직접 접근한다.
-- admin만 태그된 서버의 OpenSSH 22/TCP와 Kubernetes API 6443/TCP에 접근한다.
+- `group:aligner-operators`만 태그된 서버의 OpenSSH 22/TCP와 Kubernetes API 6443/TCP에 접근한다.
+- Tailnet console 관리자 권한은 서버 접근 권한을 대신하지 않으며, 운영자 추가·제거는 이 그룹에서 관리한다.
 - Tailscale SSH는 끄고 기존 SSH key를 사용한다.
 - 공인망에서 22, 6443, Argo CD UI, 5432, 6379를 차단한다.
 - 운영자·장비·노드 변경 시 tailnet membership을 즉시 폐기한다.
