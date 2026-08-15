@@ -172,8 +172,13 @@ done
 RESOLVED_IMAGE=""
 
 # Check if input is a raw digest sha256:...
-if [[ "$IMAGE_INPUT" =~ ^sha256:[a-fA-F0-9]{64}$ ]]; then
-  RESOLVED_IMAGE="${DEFAULT_REPO}@${IMAGE_INPUT}"
+if [[ "$IMAGE_INPUT" =~ ^sha256: ]]; then
+  if [[ "$IMAGE_INPUT" =~ ^sha256:[a-fA-F0-9]{64}$ ]]; then
+    RESOLVED_IMAGE="${DEFAULT_REPO}@${IMAGE_INPUT}"
+  else
+    echo "ERROR: Digest starting with 'sha256:' must have exactly 64 hexadecimal characters: '$IMAGE_INPUT'" >&2
+    exit 1
+  fi
 # Check if input is a tag without repo prefix (no slash and no sha256 prefix)
 elif [[ ! "$IMAGE_INPUT" =~ / ]] && [[ ! "$IMAGE_INPUT" =~ ^sha256: ]]; then
   RESOLVED_IMAGE="${DEFAULT_REPO}:${IMAGE_INPUT}"
@@ -194,6 +199,12 @@ validate_image_reference() {
   # Reject invalid/placeholder image references
   if [[ "$img" =~ registry\.invalid ]] || [[ "$img" =~ @sha256:0{64} ]]; then
     echo "ERROR: Image reference must not be the placeholder 'registry.invalid' or all-zero digest: '$img'" >&2
+    return 1
+  fi
+
+  # If it has @sha256:, ensure exact 64-hex chars
+  if [[ "$img" =~ @sha256: ]] && [[ ! "$img" =~ @sha256:[a-fA-F0-9]{64}$ ]]; then
+    echo "ERROR: Truncated or invalid digest in image reference: '$img'" >&2
     return 1
   fi
 
@@ -236,26 +247,27 @@ for target_file in "${TARGET_FILES[@]}"; do
   fi
 
   # Perform Python-based in-place replacement to safely preserve formatting and comments
-  python3 - <<PYEOF
+  python3 - "$target_file" "$RESOLVED_IMAGE" <<'PYEOF'
 import re
 import sys
 
-filepath = "$target_file"
-new_image = "$RESOLVED_IMAGE"
+filepath = sys.argv[1]
+new_image = sys.argv[2]
 
 with open(filepath, "r", encoding="utf-8") as f:
     content = f.read()
 
 # Replace image: under containers where name is api
-# Match pattern: (name:\s*api\s*\n\s*image:\s*)\S+ or (image:\s*)\S+(\s*\n\s*name:\s*api)
 pattern = r'(name:\s*api\s*\n\s*image:\s*)\S+'
+pattern_alt = r'(image:\s*)\S+(\s*\n\s*(?:[^\n]*\n\s*)*?name:\s*api)'
+
 if re.search(pattern, content):
-    updated_content = re.sub(pattern, r'\g<1>' + new_image, content)
+    updated_content = re.sub(pattern, lambda m: m.group(1) + new_image, content)
+elif re.search(pattern_alt, content):
+    updated_content = re.sub(pattern_alt, lambda m: "image: " + new_image + m.group(2), content, count=1)
 else:
-    pattern2 = r'(image:\s*)\S+(\s*\n\s*imagePullPolicy:[^\n]*\n\s*(?:securityContext:[^\n]*\n\s*(?:allowPrivilegeEscalation:[^\n]*\n\s*(?:capabilities:[^\n]*\n\s*(?:drop:[^\n]*\n\s*(?:-\s*ALL\s*\n\s*)?)?)?)?)?name:\s*api)'
-    # fallback: replace first image under containers
-    pattern3 = r'(image:\s*)\S+'
-    updated_content = re.sub(pattern3, r'\g<1>' + new_image, content, count=1)
+    print(f"ERROR: Could not find container 'api' image line in {filepath}", file=sys.stderr)
+    sys.exit(1)
 
 with open(filepath, "w", encoding="utf-8") as f:
     f.write(updated_content)
@@ -263,12 +275,12 @@ with open(filepath, "w", encoding="utf-8") as f:
 PYEOF
 
   # Assert update succeeded and verify YAML validity
-  python3 - <<PYEOF
+  python3 - "$target_file" "$RESOLVED_IMAGE" <<'PYEOF'
 import yaml
 import sys
 
-filepath = "$target_file"
-expected_image = "$RESOLVED_IMAGE"
+filepath = sys.argv[1]
+expected_image = sys.argv[2]
 
 with open(filepath, "r", encoding="utf-8") as f:
     docs = list(yaml.safe_load_all(f))

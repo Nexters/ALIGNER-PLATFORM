@@ -99,6 +99,18 @@ if [ -z "$SECRET_FILE" ]; then
   exit 1
 fi
 
+if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ]; then
+  echo "ERROR: Bash 4 or higher is required." >&2
+  exit 1
+fi
+
+trim_whitespace() {
+  local var="$*"
+  var="${var#"${var%%[![:space:]]*}"}"
+  var="${var%"${var##*[![:space:]]}"}"
+  printf '%s' "$var"
+}
+
 if [ ! -f "$SECRET_FILE" ]; then
   echo "ERROR: Secret file '$SECRET_FILE' does not exist or is not a regular file." >&2
   exit 1
@@ -112,7 +124,7 @@ fi
 # 2. Validate all required keys are present in the secret file
 REQUIRED_KEYS=()
 while IFS= read -r key || [ -n "$key" ]; do
-  key_trimmed=$(echo "$key" | sed -e 's/^[[:blank:]]*//' -e 's/[[:blank:]]*$//')
+  key_trimmed=$(trim_whitespace "$key")
   [ -z "$key_trimmed" ] && continue
   [[ "$key_trimmed" =~ ^# ]] && continue
   REQUIRED_KEYS+=("$key_trimmed")
@@ -120,16 +132,20 @@ done < "$KEYS_FILE"
 
 # Parse and normalize secret file entries
 declare -A FOUND_KEYS
+umask 077
 tmp_env_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_env_dir"' EXIT
 clean_env_file="$tmp_env_dir/secrets.env"
+touch "$clean_env_file"
 
+line_number=0
 while IFS= read -r line || [ -n "$line" ]; do
-  trimmed=$(echo "$line" | sed -e 's/^[[:blank:]]*//' -e 's/[[:blank:]]*$//')
+  line_number=$((line_number + 1))
+  trimmed=$(trim_whitespace "$line")
   [ -z "$trimmed" ] && continue
   [[ "$trimmed" =~ ^# ]] && continue
   trimmed="${trimmed#export }"
-  trimmed=$(echo "$trimmed" | sed -e 's/^[[:blank:]]*//')
+  trimmed=$(trim_whitespace "$trimmed")
   if [[ "$trimmed" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
     key_name="${BASH_REMATCH[1]}"
     val="${BASH_REMATCH[2]}"
@@ -139,11 +155,14 @@ while IFS= read -r line || [ -n "$line" ]; do
     fi
     FOUND_KEYS["$key_name"]=1
     echo "${key_name}=${val}" >> "$clean_env_file"
+  else
+    echo "ERROR: Malformed line $line_number in '$SECRET_FILE': '$line'" >&2
+    exit 1
   fi
 done < "$SECRET_FILE"
 
 MISSING_KEYS=()
-for req_key in "${REQUIRED_KEYS[@]}"; do
+for req_key in ${REQUIRED_KEYS[@]+"${REQUIRED_KEYS[@]}"}; do
   if [ -z "${FOUND_KEYS[$req_key]:-}" ]; then
     MISSING_KEYS+=("$req_key")
   fi
@@ -151,7 +170,7 @@ done
 
 if [ ${#MISSING_KEYS[@]} -ne 0 ]; then
   echo "ERROR: Secret file '$SECRET_FILE' is missing required keys from $(basename "$KEYS_FILE"):" >&2
-  for mkey in "${MISSING_KEYS[@]}"; do
+  for mkey in ${MISSING_KEYS[@]+"${MISSING_KEYS[@]}"}; do
     echo "  - $mkey" >&2
   done
   exit 1
@@ -167,25 +186,23 @@ if [ -n "$KUBECONFIG_FILE" ]; then
     exit 1
   fi
   KUBECTL_ARGS+=(--kubeconfig "$KUBECONFIG_FILE")
-elif [ -n "${KUBECONFIG:-}" ]; then
-  if [ -f "$KUBECONFIG" ]; then
-    KUBECTL_ARGS+=(--kubeconfig "$KUBECONFIG")
-  fi
+elif [ -n "${KUBECONFIG:-}" ] && [ -f "$KUBECONFIG" ]; then
+  KUBECTL_ARGS+=(--kubeconfig "$KUBECONFIG")
 elif [ -f "$repo_root/.runtime/kubeconfig" ]; then
   KUBECTL_ARGS+=(--kubeconfig "$repo_root/.runtime/kubeconfig")
 fi
 
 # 4. Ensure Namespace exists & Apply Secret aligner-api-secrets
-if ! kubectl "${KUBECTL_ARGS[@]}" get namespace "$NAMESPACE" >/dev/null 2>&1; then
+if ! kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} get namespace "$NAMESPACE" >/dev/null 2>&1; then
   echo "Namespace '$NAMESPACE' does not exist; creating namespace..."
-  kubectl "${KUBECTL_ARGS[@]}" create namespace "$NAMESPACE"
+  kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} create namespace "$NAMESPACE"
 fi
 
 echo "Applying secret 'aligner-api-secrets' in namespace '$NAMESPACE'..."
-kubectl "${KUBECTL_ARGS[@]}" create secret generic aligner-api-secrets \
+kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} create secret generic aligner-api-secrets \
   --namespace="$NAMESPACE" \
   --from-env-file="$clean_env_file" \
-  --dry-run=client -o yaml | kubectl "${KUBECTL_ARGS[@]}" apply -f -
+  --dry-run=client -o yaml | kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} apply -f -
 
 echo "✓ Secret 'aligner-api-secrets' applied successfully in namespace '$NAMESPACE'."
 

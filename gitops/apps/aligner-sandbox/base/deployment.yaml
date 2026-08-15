@@ -29,7 +29,7 @@ spec:
       containers:
         - name: api
           image: ghcr.io/nexters/aligner-server:develop
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

@@ -52,10 +52,45 @@ class UpdateAlignerApiImageTest(unittest.TestCase):
             "invalid image with spaces",
             "http://not-an-image",
             "ghcr.io/aligner::invalid",
+            "sha256:abc123",  # Truncated digest
+            "sha256:1234567890",
+            "ghcr.io/nexters/aligner-server@sha256:abc123",  # Truncated full digest
         ]
         for inv in invalid_inputs:
             result = subprocess.run([str(SCRIPT_PATH), "--dry-run", inv], capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0, f"Expected failure for: {inv}")
+
+    def test_target_flag_filtering(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f_api, \
+             tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f_sb:
+            f_api.write(API_DEPLOYMENT.read_text(encoding="utf-8"))
+            f_sb.write(SANDBOX_DEPLOYMENT.read_text(encoding="utf-8"))
+            api_path = f_api.name
+            sb_path = f_sb.name
+
+        try:
+            # Test --target api
+            result_api = subprocess.run(
+                [str(SCRIPT_PATH), "--file", api_path, "--target", "api", "v1.2.3"],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result_api.returncode, 0, result_api.stderr)
+            doc_api = yaml.safe_load(pathlib.Path(api_path).read_text())
+            self.assertEqual(doc_api["spec"]["template"]["spec"]["containers"][0]["image"], "ghcr.io/nexters/aligner-server:v1.2.3")
+
+            # Test --target sandbox
+            result_sb = subprocess.run(
+                [str(SCRIPT_PATH), "--file", sb_path, "--target", "sandbox", "develop"],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result_sb.returncode, 0, result_sb.stderr)
+            doc_sb = yaml.safe_load(pathlib.Path(sb_path).read_text())
+            self.assertEqual(doc_sb["spec"]["template"]["spec"]["containers"][0]["image"], "ghcr.io/nexters/aligner-server:develop")
+        finally:
+            os.remove(api_path)
+            os.remove(sb_path)
 
     def test_dry_run_does_not_modify_files(self):
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:

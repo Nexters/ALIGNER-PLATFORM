@@ -7,7 +7,7 @@ TAILSCALE_INVENTORY := $(CURDIR)/ansible/inventories/tailscale/hosts.yml
 lint:
 	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ANSIBLE_COLLECTIONS_PATH=$(ANSIBLE_COLLECTIONS_PATH) ansible-lint ansible/
 	yamllint ansible/
-	find ansible/roles -type f -path '*/files/*.sh' -exec shellcheck {} +
+	find ansible/roles scripts -type f \( -name '*.sh' -o -path '*/files/*.sh' \) -exec shellcheck {} +
 
 collections:
 	ANSIBLE_CONFIG=$(ANSIBLE_CONFIG) ansible-galaxy collection install -r ansible/requirements.yml -p $(ANSIBLE_COLLECTIONS_PATH)
@@ -86,4 +86,6 @@ test-bootstrap-secret:
 
 test-update-image:
 	python3 scripts/tests/test_update_aligner_api_image.py
+
+test: test-verify test-bootstrap-secret test-update-image
 
