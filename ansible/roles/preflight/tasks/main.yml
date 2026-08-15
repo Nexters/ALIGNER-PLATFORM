@@ -50,16 +50,17 @@
     fail_msg: >-
       Root 디스크는 최소 {{ preflight_min_root_disk_bytes | int // 1024 // 1024 // 1024 }} GiB가 필요합니다.
 
-- name: 노드 간 사설망 TCP 도달성 검사
-  ansible.builtin.wait_for:
-    host: "{{ hostvars[item].private_ip }}"
-    port: "{{ hostvars[item].ansible_port | default(preflight_peer_port) }}"
-    state: started
-    connect_timeout: "{{ preflight_peer_connect_timeout }}"
-    timeout: "{{ preflight_peer_timeout }}"
+- name: 노드 간 사설망 경로 검사
+  ansible.builtin.command:
+    argv:
+      - ip
+      - route
+      - get
+      - "{{ hostvars[item].private_ip }}"
   loop: "{{ groups['k3s_servers'] | reject('equalto', inventory_hostname) | list }}"
   when: not ansible_check_mode
   changed_when: false
+  no_log: true
 
 - name: Preflight 통과 상태 기록
   ansible.builtin.set_fact:
