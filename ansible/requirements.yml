@@ -1,7 +1,7 @@
 ---
 collections:
   - name: kubernetes.core
-    version: "6.4.0"        # ansible-core 2.16+; helm/kubeconfig 모듈에 사용
+    version: "6.5.0"        # ansible-core 2.16+; Helm 4 지원 helm/kubeconfig 모듈에 사용
   - name: ansible.posix
     version: "2.1.0"        # ansible-core 2.16+; mount, sysctl 등
   - name: community.general

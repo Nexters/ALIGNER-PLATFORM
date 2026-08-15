@@ -17,13 +17,12 @@
     state: directory
     mode: "0700"
 
-- name: Kubeconfig를 컨트롤 머신으로 가져오기
-  ansible.builtin.fetch:
-    src: /etc/rancher/k3s/k3s.yaml
+- name: Kubeconfig를 컨트롤 머신에 저장
+  ansible.builtin.copy:
+    content: "{{ cilium_kubeconfig }}"
     dest: "{{ playbook_dir }}/../../.runtime/kubeconfig"
-    flat: true
-  delegate_to: "{{ groups['k3s_first_server'][0] }}"
-  become: true
+    mode: "0600"
+  no_log: true
 
 - name: Kubeconfig API 주소를 Tailscale MagicDNS 이름으로 변경
   vars:
@@ -38,6 +37,7 @@
   kubernetes.core.helm_repository:
     name: cilium
     repo_url: https://helm.cilium.io/
+    force_update: true
 
 - name: Cilium 설치 — 클러스터 밖에서 API 호출
   kubernetes.core.helm:
