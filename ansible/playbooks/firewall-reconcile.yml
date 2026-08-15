@@ -1,0 +1,9 @@
+---
+# Reconcile only the already-approved host firewall after a cluster networking
+# change. The role retains its per-node Tailscale proof and rollback guards.
+- name: Reconcile host firewall for Cilium service traffic
+  hosts: k3s_servers
+  become: true
+  serial: 1
+  roles:
+    - firewall
