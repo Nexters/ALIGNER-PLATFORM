@@ -25,12 +25,7 @@
     {
       "src": ["group:aligner-operators"],
       "dst": ["tag:aligner-argocd"],
-      "ip": ["tcp:443"],
-    },
-    {
-      "src": ["group:aligner-operators"],
-      "dst": ["tag:aligner-argocd:*"],
-      "ip": ["icmp:*"],
+      "ip": ["tcp:443", "icmp:*"],
     },
   ],
 }
