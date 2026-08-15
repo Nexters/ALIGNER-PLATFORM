@@ -10,3 +10,8 @@ k3s_etcd_s3_secret_key: ""
 k3s_etcd_s3_region: auto
 k3s_etcd_s3_folder: hot/etcd
 k3s_etcd_s3_retention: 28
+k3s_data_dir: /mnt/k3s
+application_data_dir: /mnt/aligner
+cluster_cidr: 10.42.0.0/16
+service_cidr: 10.43.0.0/16
+k3s_node_ips: "{{ groups['k3s_servers'] | map('extract', hostvars, 'private_ip') | list }}"
