@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "aligner-platform",
+      "initial-version": "1.0.0",
+      "changelog-sections": [
+        { "type": "feat", "section": "✨ 신규 인프라 기능 (Features)", "hidden": false },
+        { "type": "fix", "section": "🐛 인프라 수정 (Fixes)", "hidden": false },
+        { "type": "perf", "section": "⚡ 성능 최적화 (Performance)", "hidden": false },
+        { "type": "refactor", "section": "♻️ 구조 개선 (Refactoring)", "hidden": false },
+        { "type": "docs", "section": "📝 런북 및 문서 (Documentation)", "hidden": false },
+        { "type": "chore", "section": "🔧 설정 및 도구 (Maintenance)", "hidden": false }
+      ]
+    }
+  }
+}
