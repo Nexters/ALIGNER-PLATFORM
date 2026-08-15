@@ -31,6 +31,11 @@ class TailscaleFirewallContractTest(unittest.TestCase):
         self.assertIn("firewall_k3s_node_private_ips | join", self.template)
         self.assertNotIn("ip saddr {{ firewall_vpc_cidr }}", self.template)
 
+    def test_interface_derivation_ignores_non_mapping_ipv4_facts(self) -> None:
+        self.assertEqual(self.tasks.count("selectattr('value.ipv4', 'mapping')"), 1)
+        self.assertNotIn("firewall_public_interfaces", self.tasks)
+        self.assertNotIn("public_ip in ansible_all_ipv4_addresses", self.tasks)
+
     def test_retains_root_only_dedicated_rollback_copy(self) -> None:
         self.assertIn("dest: /etc/nftables.d/aligner.nft.aligner-pre-firewall", self.tasks)
         self.assertNotIn("Remove rollback copy after successful validation", self.tasks)

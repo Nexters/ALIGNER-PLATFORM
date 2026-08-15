@@ -252,8 +252,8 @@ func validateDesired(d Desired, requireImage bool) error {
 		problems = append(problems, "load_balancer.listeners is required")
 	}
 	for _, l := range d.LoadBalancer.Listeners {
-		if !((l.Port == 80 && l.Protocol == "HTTP") || (l.Port == 443 && l.Protocol == "HTTPS")) || l.TargetPort < 1 || l.TargetPort > 65535 {
-			problems = append(problems, "load balancer listeners allow only HTTP/80 or HTTPS/443 with a valid target_port")
+		if !((l.Port == 80 && l.Protocol == "HTTP") || (l.Port == 443 && (l.Protocol == "HTTPS" || l.Protocol == "TCP"))) || l.TargetPort < 1 || l.TargetPort > 65535 {
+			problems = append(problems, "load balancer listeners allow only HTTP/80 or HTTPS/TCP 443 with a valid target_port")
 			break
 		}
 	}
@@ -344,7 +344,9 @@ func inventory(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err := Validate(d); err != nil {
+	// Inventory only renders already-recorded addresses. It does not create a
+	// server, so an unresolved image ID must not block public bootstrap access.
+	if err := validateDesired(d, false); err != nil {
 		return err
 	}
 	if d.Servers.Count != 3 || strings.Join(d.Servers.Names, ",") != "k3s-01,k3s-02,k3s-03" {

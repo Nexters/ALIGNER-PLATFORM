@@ -64,6 +64,17 @@ func TestInventoryRequiresFixedThreeNodeTopology(t *testing.T) {
 	}
 }
 
+func TestValidateAllowsTraefikTCP443(t *testing.T) {
+	path := writeDesired(t, strings.Replace(validYAML, "protocol: HTTPS", "protocol: TCP", 1))
+	d, err := loadDesired([]string{"-f", path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Validate(d); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestMutationsFailClosedWithoutCreatingState(t *testing.T) {
 	chdir(t)
 	d := writeDesired(t, validYAML)
@@ -113,7 +124,8 @@ func TestAccessOnlyAllowsDeclaredTargetsAnd32(t *testing.T) {
 
 func TestInventoryUsesStateWithoutCredentials(t *testing.T) {
 	chdir(t)
-	d := writeDesired(t, strings.Replace(validYAML, "count: 2, names: [k3s-01, k3s-02]", "count: 3, names: [k3s-01, k3s-02, k3s-03]", 1))
+	threeNodeYAML := strings.Replace(validYAML, "count: 2, names: [k3s-01, k3s-02]", "count: 3, names: [k3s-01, k3s-02, k3s-03]", 1)
+	d := writeDesired(t, strings.Replace(threeNodeYAML, "os_image: image-verified", "os_image: null", 1))
 	if err := os.MkdirAll(".runtime", 0750); err != nil {
 		t.Fatal(err)
 	}
