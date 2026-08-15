@@ -7,8 +7,10 @@ Accepted
 ## 결정
 
 운영자 2명과 k3s 서버 3대의 관리망은 Tailscale Personal을 사용한다. 서버는
-`tag:aligner-prod`로 등록하고, `autogroup:admin`에서 해당 태그의 22/TCP와
-6443/TCP만 허용한다. Tailscale SSH는 끄고 기존 OpenSSH key를 사용한다.
+`tag:aligner-prod`로 등록한다. Tailnet 정책의 `group:aligner-operators`에서 해당 태그의
+22/TCP와 6443/TCP만 허용한다. 이 그룹의 구성원은 두 운영자로 유지하며, Tailscale console
+관리자 권한과 서버 접근 권한을 같은 것으로 취급하지 않는다. Tailscale SSH는 끄고 기존 OpenSSH
+key를 사용한다.
 
 노드 간 K3s·etcd·CNI 트래픽은 가비아 VPC 사설 IP를 유지한다. Tailscale은 운영자
 접근과 클러스터 API 관리에만 사용한다.
