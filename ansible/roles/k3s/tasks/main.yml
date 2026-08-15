@@ -25,7 +25,7 @@
 - name: Verify Data-B local PV guard before K3s can deploy local-path provisioner
   ansible.builtin.command:
     argv:
-      - "{{ storage_data_b_guard_path }}"
+      - "{{ storage_data_b_guard_path | default('/usr/local/libexec/aligner-local-pv-data-b-guard') }}"
   changed_when: false
 
 - name: Create K3s configuration directory
@@ -84,6 +84,16 @@
     mode: "0644"
   notify: Restart K3s
 
+- name: Verify first-server Kubernetes API is reachable before joining
+  ansible.builtin.wait_for:
+    host: "{{ hostvars[groups['k3s_first_server'][0]].private_ip }}"
+    port: 6443
+    state: started
+    connect_timeout: 2
+    timeout: 30
+  when: inventory_hostname not in groups['k3s_first_server']
+  changed_when: false
+
 - name: Enable and start K3s
   ansible.builtin.systemd_service:
     name: k3s
@@ -108,7 +118,7 @@
   until: k3s_api_ready.rc == 0 and k3s_api_ready.stdout is search('ok')
   when: inventory_hostname in groups['k3s_first_server']
 
-- name: Wait for joining server node readiness
+- name: Wait for joining server registration
   ansible.builtin.command:
     argv:
       - /usr/local/bin/k3s
@@ -116,14 +126,12 @@
       - get
       - node
       - "{{ inventory_hostname }}"
-      - -o
-      - "jsonpath={.status.conditions[?(@.type=='Ready')].status}"
   delegate_to: "{{ groups['k3s_first_server'][0] }}"
-  register: k3s_join_node_ready
+  register: k3s_join_node_registered
   changed_when: false
   retries: 30
   delay: 10
-  until: k3s_join_node_ready.stdout == 'True'
+  until: k3s_join_node_registered.rc == 0
   when: inventory_hostname not in groups['k3s_first_server']
 
 - name: Read first-server encryption configuration hash

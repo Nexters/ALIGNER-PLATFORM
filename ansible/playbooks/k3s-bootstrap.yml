@@ -1,0 +1,25 @@
+---
+# Phase 2 only: node prerequisites and the three embedded-etcd K3s servers.
+# Cilium and GitOps bootstrap deliberately run in later phases.
+- name: K3s node prerequisites
+  hosts: k3s_servers
+  become: true
+  gather_facts: true
+  serial: 1
+  roles:
+    - preflight
+    - baseline
+    - storage
+
+- name: K3s first embedded-etcd server
+  hosts: k3s_first_server
+  become: true
+  roles:
+    - k3s
+
+- name: Join remaining embedded-etcd servers
+  hosts: k3s_servers:!k3s_first_server
+  become: true
+  serial: 1
+  roles:
+    - k3s
