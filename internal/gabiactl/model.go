@@ -37,3 +37,25 @@ type Listener struct {
 	Protocol   string `yaml:"protocol"`
 	TargetPort int    `yaml:"target_port"`
 }
+
+// State has no credentials. Its server addresses are only populated after the
+// sandbox captures establish the list/read response schema.
+type State struct {
+	Environment string                   `json:"environment"`
+	Resources   map[string]ResourceState `json:"resources,omitempty"`
+	Servers     map[string]ServerState   `json:"servers"`
+}
+
+// ResourceState contains only the stable cloud ID and addresses required for
+// inventory. It deliberately excludes unverified provider response fields.
+type ResourceState struct {
+	ID        string `json:"id"`
+	PublicIP  string `json:"public_ip,omitempty"`
+	PrivateIP string `json:"private_ip,omitempty"`
+}
+
+type ServerState struct {
+	ID        string `json:"id"`
+	PublicIP  string `json:"public_ip,omitempty"`
+	PrivateIP string `json:"private_ip,omitempty"`
+}
