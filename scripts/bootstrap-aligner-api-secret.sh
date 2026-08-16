@@ -193,25 +193,25 @@ elif [ -f "$repo_root/.runtime/kubeconfig" ]; then
 fi
 
 # 4. Ensure Namespace exists & Apply Secret aligner-api-secrets
-if ! kubectl "${KUBECTL_ARGS[@]}" get namespace "$NAMESPACE" >/dev/null 2>&1; then
+if ! kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} get namespace "$NAMESPACE" >/dev/null 2>&1; then
   echo "Namespace '$NAMESPACE' does not exist; creating namespace..."
-  kubectl "${KUBECTL_ARGS[@]}" create namespace "$NAMESPACE"
+  kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} create namespace "$NAMESPACE"
 fi
 
 echo "Applying secret 'aligner-api-secrets' in namespace '$NAMESPACE'..."
-kubectl "${KUBECTL_ARGS[@]}" create secret generic aligner-api-secrets \
+kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} create secret generic aligner-api-secrets \
   --namespace="$NAMESPACE" \
   --from-env-file="$clean_env_file" \
-  --dry-run=client -o yaml | kubectl "${KUBECTL_ARGS[@]}" apply -f -
+  --dry-run=client -o yaml | kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} apply -f -
 
 echo "✓ Secret 'aligner-api-secrets' applied successfully in namespace '$NAMESPACE'."
 
 # 5. Restart Deployment if present
-deployments=$(kubectl "${KUBECTL_ARGS[@]}" get deployments -n "$NAMESPACE" -l "app.kubernetes.io/part-of=aligner" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+deployments=$(kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} get deployments -n "$NAMESPACE" -l "app.kubernetes.io/part-of=aligner" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
 
 if [ -z "$deployments" ]; then
   for candidate in "aligner-api" "aligner-sandbox-api"; do
-    if kubectl "${KUBECTL_ARGS[@]}" get deployment "$candidate" -n "$NAMESPACE" >/dev/null 2>&1; then
+    if kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} get deployment "$candidate" -n "$NAMESPACE" >/dev/null 2>&1; then
       deployments="$candidate"
       break
     fi
@@ -220,8 +220,8 @@ fi
 
 if [ -n "$deployments" ]; then
   for dep in $deployments; do
-    echo "Restarting deployment '$dep' in namespace '$NAMESPACE'..."
-    kubectl "${KUBECTL_ARGS[@]}" rollout restart deployment/"$dep" -n "$NAMESPACE"
+    echo "Triggering rollout restart for deployment '$dep' in namespace '$NAMESPACE'..."
+    kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} rollout restart deployment/"$dep" -n "$NAMESPACE"
     echo "✓ Rollout restart triggered for deployment '$dep'."
   done
 else
