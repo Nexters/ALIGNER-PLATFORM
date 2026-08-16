@@ -47,6 +47,18 @@ spec:
           envFrom:
             - secretRef:
                 name: aligner-api-secrets
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
           resources:
             requests:
               cpu: 100m

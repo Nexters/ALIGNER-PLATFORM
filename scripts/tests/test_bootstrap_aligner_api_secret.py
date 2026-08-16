@@ -79,7 +79,7 @@ YMOVE_API_KEY="ymove-key-12345"
             try:
                 result = subprocess.run([str(SCRIPT_PATH), temp_file, kubeconfig_file, "aligner"], capture_output=True, text=True)
                 # It should validate all 9 keys successfully before attempting kubectl operations
-                self.assertIn("Secret file validated against runtime-secret.keys (all 9 keys present)", result.stdout)
+                self.assertIn(f"Secret file validated against runtime-secret.keys (all {len(EXPECTED_KEYS)} keys present)", result.stdout)
             finally:
                 os.remove(kubeconfig_file)
         finally:
