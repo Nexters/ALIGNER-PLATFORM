@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.1](https://github.com/Nexters/ALIGNER-PLATFORM/compare/aligner-platform-v0.2.0...aligner-platform-v0.2.1) (2026-08-16)
+
+
+### 🐛 인프라 수정 (Fixes)
+
+* **data:** local-path-provisioner ConfigMap을 L3(ArgoCD)에서 제거 ([d37390a](https://github.com/Nexters/ALIGNER-PLATFORM/commit/d37390a25e11690a29c8b1c4c61b2d081199bd1b))
+* **gitops:** cluster.yaml PostgreSQL 이미지 버전을 실제 런타임인 16.8로 동기화 ([e257dc7](https://github.com/Nexters/ALIGNER-PLATFORM/commit/e257dc7bec3a0ea0ffd7cb0d45cc20fdddb34331))
+* **gitops:** runtime-secret.keys 에서 DB_URL 제거 및 DB_PRIMARY_URL, DB_READONLY_URL 동기화 ([6c5c5e9](https://github.com/Nexters/ALIGNER-PLATFORM/commit/6c5c5e9eedb9218684b5155112a71791d69e05e8))
+
+
+### 📝 런북 및 문서 (Documentation)
+
+* README.md 시스템 아키텍처 및 3계층 플랫폼 명세 최신화 ([ad2c14b](https://github.com/Nexters/ALIGNER-PLATFORM/commit/ad2c14b34d1741d1ac8c6e6db6d29002a4506fde))
+* README.md 영문 표준 기술 용어 정돈 및 라이선스 배지 제거 ([44f1d2b](https://github.com/Nexters/ALIGNER-PLATFORM/commit/44f1d2ba34a5e1cca8952c95cc1b4c07dcb7dd76))
+
 ## [0.2.0](https://github.com/Nexters/ALIGNER-PLATFORM/compare/aligner-platform-v0.1.0...aligner-platform-v0.2.0) (2026-08-16)
 
 
