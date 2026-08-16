@@ -33,15 +33,17 @@ PITR 성공 전에는 backup 구성을 완료로 처리하지 않는다.
 
 1. 세 노드 모두에서 `/mnt/aligner`가 Data-B UUID로 마운트되고
    `/usr/local/libexec/aligner-local-pv-data-b-guard`가 성공해야 한다.
-2. `local-path-storage/local-path-config`의
-   `storageClassConfigs.aligner-local-path`는 모든 노드에서 `/mnt/aligner`만
-   허용해야 한다. 이 ConfigMap은 기존 K3s local-path 설정과 server-side merge로
-   적용한다. `setup`은 UUID guard 성공 후 Data-B에 기록된 marker를 PVC 생성마다
-   검사하므로 삭제하거나 기본 script로 되돌리지 않는다. 이 항목이 없으면
-   `aligner-local-path` PVC는 생성하지 않는다.
-3. `aligner-postgresql-app`과 `aligner-postgresql-b2-writer` Secret 이름이
+2. K3s `local-path-provisioner`의 기본 경로가 `/mnt/aligner`인지 확인한다.
+   이 설정은 L2(Ansible/K3s)가 `default-local-storage-path`로 관리하며
+   L3(ArgoCD)에서 변경하지 않는다. 확인 명령:
+   `kubectl get cm local-path-config -n kube-system -o jsonpath='{.data.config\.json}'`
+3. `aligner-local-path` StorageClass가 `rancher.io/local-path` provisioner를 사용하고
+   `reclaimPolicy: Retain`, `nodePath: /mnt/aligner`인지 확인한다.
+   이 StorageClass는 `gitops/data/postgresql/storage-class.yaml`에 정의되어
+   PostgreSQL subtree 연결 시 함께 적용된다.
+4. `aligner-postgresql-app`과 `aligner-postgresql-b2-writer` Secret 이름이
    `aligner-data` namespace에 준비되었는지 확인한다. 값은 Git이나 출력에 기록하지 않는다.
-4. B2 writer 권한은 `cnpg/` prefix에만 제한한다. retention이 요구하는 list/delete 권한은
+5. B2 writer 권한은 `cnpg/` prefix에만 제한한다. retention이 요구하는 list/delete 권한은
    별도 승인 절차에서 WAL, weekly base backup, retention, PITR과 함께 시험한다.
 
 ## Redis cache recovery
