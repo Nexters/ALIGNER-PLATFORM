@@ -10,6 +10,7 @@ SCRIPT_PATH = REPO_ROOT / "scripts" / "bootstrap-aligner-api-secret.sh"
 KEYS_PATH = REPO_ROOT / "gitops" / "apps" / "aligner-api" / "runtime-secret.keys"
 
 EXPECTED_KEYS = [
+    "ACTUATOR_BASE_PATH",
     "DB_PASSWORD",
     "DB_URL",
     "DB_USERNAME",
@@ -47,6 +48,7 @@ class BootstrapAlignerApiSecretTest(unittest.TestCase):
             result = subprocess.run([str(SCRIPT_PATH), temp_file], capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("missing required keys", result.stderr)
+            self.assertIn("ACTUATOR_BASE_PATH", result.stderr)
             self.assertIn("DB_USERNAME", result.stderr)
             self.assertIn("JWT_SECRET", result.stderr)
             self.assertIn("KAKAO_CLIENT_ID", result.stderr)
@@ -60,6 +62,7 @@ class BootstrapAlignerApiSecretTest(unittest.TestCase):
     def test_all_keys_validation_success(self):
         with tempfile.NamedTemporaryFile("w", delete=False) as f:
             f.write("""# Test Secret file
+ACTUATOR_BASE_PATH="/_internal_probe_7f8a92b1"
 DB_PASSWORD="mysecretpassword"
 DB_URL="jdbc:postgresql://aligner-postgresql-rw.aligner-data.svc:5432/aligner_dev"
 export DB_USERNAME=aligner_user
@@ -78,8 +81,8 @@ YMOVE_API_KEY="ymove-key-12345"
                 kubeconfig_file = kf.name
             try:
                 result = subprocess.run([str(SCRIPT_PATH), temp_file, kubeconfig_file, "aligner"], capture_output=True, text=True)
-                # It should validate all 9 keys successfully before attempting kubectl operations
-                self.assertIn("Secret file validated against runtime-secret.keys (all 9 keys present)", result.stdout)
+                # It should validate all 10 keys successfully before attempting kubectl operations
+                self.assertIn(f"Secret file validated against runtime-secret.keys (all {len(EXPECTED_KEYS)} keys present)", result.stdout)
             finally:
                 os.remove(kubeconfig_file)
         finally:
