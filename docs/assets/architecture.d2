@@ -1,0 +1,193 @@
+direction: down
+
+vars: {
+  d2-config: {
+    theme-id: 4
+    pad: 20
+  }
+}
+
+classes: {
+  node_card: {
+    style: {
+      fill: "#FFFFFF"
+      stroke: "#475569"
+      stroke-width: 2
+      border-radius: 8
+    }
+  }
+  k8s_svc: {
+    shape: hexagon
+    style: {
+      fill: "#EFF6FF"
+      stroke: "#2563EB"
+      stroke-width: 2
+    }
+  }
+  prod_pod: {
+    shape: rectangle
+    style: {
+      fill: "#ECFDF5"
+      stroke: "#059669"
+      stroke-width: 2
+      border-radius: 6
+    }
+  }
+  dev_pod: {
+    shape: rectangle
+    style: {
+      fill: "#FFFBEB"
+      stroke: "#D97706"
+      stroke-width: 2
+      border-radius: 6
+    }
+  }
+  db_box: {
+    shape: cylinder
+    style: {
+      fill: "#EEF2FF"
+      stroke: "#4F46E5"
+      stroke-width: 2
+    }
+  }
+  cache_box: {
+    shape: cylinder
+    style: {
+      fill: "#FEF2F2"
+      stroke: "#DC2626"
+      stroke-width: 2
+    }
+  }
+  storage_box: {
+    shape: package
+    style: {
+      fill: "#F8FAFC"
+      stroke: "#94A3B8"
+      stroke-width: 1
+    }
+  }
+}
+
+# -----------------------------------------------------------
+# LAYER 1: Public Ingress & Gateway API Plane
+# -----------------------------------------------------------
+layer1: "🌐 Layer 1 & 3 : Public Edge Ingress & Gateway API Plane" {
+  style.fill: "#F0F9FF"
+  style.stroke: "#0284C7"
+  style.stroke-width: 2
+
+  clients: "📱 Clients & Web App" { shape: person }
+  dns: "🌍 Gabia DNS\n*.aligneryoga.com"
+  l4_lb: "⚖️ Gabia External L4 LB\n(TCP :80 / :443)"
+  traefik: "🚪 Traefik Gateway API DaemonSet\n(NodePort :30080 / :30443)"
+  cert_mgr: "🔒 Cert-Manager (Let's Encrypt TLS)"
+
+  clients -> dns: "HTTPS :443" { style.stroke: "#0284C7" }
+  dns -> l4_lb: "Public TCP" { style.stroke: "#0284C7" }
+  l4_lb -> traefik: "NodePort Proxy" { style.stroke: "#0284C7"; style.bold: true }
+  cert_mgr -> traefik: "Auto ACME TLS" { style.stroke-dash: 4 }
+}
+
+# -----------------------------------------------------------
+# LAYER 2: K3s 3-Node Physical Compute & Storage Cluster
+# -----------------------------------------------------------
+k3s_nodes: "☸️ Layer 2 & 3 : K3s 3-Node Physical HA Cluster (Gabia gCloud Private VPC 10.20.0.0/16)" {
+  style.fill: "#FAFAFA"
+  style.stroke: "#334155"
+  style.stroke-width: 2
+
+  # Node 1
+  node1: "🖥️ k3s-01 (10.20.0.194)\n4 vCPU / 8GB RAM / 50GB OS" {
+    class: node_card
+    etcd1: "etcd-01 (Quorum 1)" { shape: hexagon }
+    api1: "aligner-api (Replica 1)\n[Actuator Health Probes]" { class: prod_pod }
+    dev_api: "aligner-sandbox-api\n[Dev Profile]" { class: dev_pod }
+    pg1: "PostgreSQL 16 Primary\n(aligner-db-1)" { class: db_box }
+    redis: "Redis Cache (256Mi)\n(aligner-redis)" { class: cache_box }
+    disk1: "Data-A: /mnt/k3s (25GB)\nData-B: /mnt/aligner (40GB)" { class: storage_box }
+  }
+
+  # Node 2
+  node2: "🖥️ k3s-02 (10.20.0.219)\n4 vCPU / 8GB RAM / 50GB OS" {
+    class: node_card
+    etcd2: "etcd-02 (Quorum 2)" { shape: hexagon }
+    api2: "aligner-api (Replica 2)\n[Actuator Health Probes]" { class: prod_pod }
+    pg2: "PostgreSQL 16 Standby\n(aligner-db-2)" { class: db_box }
+    ts_ingress: "Tailscale Ingress Proxy\n(aligner-argocd-ui)"
+    argo_server: "Argo CD Server & Dex\n(Redis HA Engine)"
+    disk2: "Data-A: /mnt/k3s (25GB)\nData-B: /mnt/aligner (40GB)" { class: storage_box }
+  }
+
+  # Node 3
+  node3: "🖥️ k3s-03 (10.20.0.23)\n4 vCPU / 8GB RAM / 50GB OS" {
+    class: node_card
+    etcd3: "etcd-03 (Quorum 3)" { shape: hexagon }
+    api3: "aligner-api (Replica 3)\n[Actuator Health Probes]" { class: prod_pod }
+    argo_ctrl: "Argo CD Controller\n(GitOps Engine)"
+    cnpg_ctrl: "CNPG Operator &\nBarman Cloud Backup"
+    ts_operator: "Tailscale Operator"
+    disk3: "Data-A: /mnt/k3s (25GB)\nData-B: /mnt/aligner (40GB)" { class: storage_box }
+  }
+}
+
+# -----------------------------------------------------------
+# LAYER 3: Zero-Trust Management, GitOps & Off-Cluster Backup
+# -----------------------------------------------------------
+management: "🔐 Layer 2 & 3 : Zero-Trust SRE Management, Declarative GitOps & Disaster Recovery" {
+  style.fill: "#F8FAFC"
+  style.stroke: "#475569"
+  style.stroke-width: 2
+
+  sre_box: "SRE & Tailscale Zero-Trust Mesh" {
+    sre: "👨‍💻 Platform SRE" { shape: person }
+    tailnet: "🛡️ Tailscale Tailnet (100.x.x.x)"
+    sre -> tailnet: "MagicDNS SSH (22) / Kube API (6443)"
+  }
+
+  gitops_box: "Declarative GitOps Delivery" {
+    github: "🐙 GitHub Repository\nNexters/ALIGNER-PLATFORM"
+  }
+
+  backup_box: "Off-Cluster Disaster Recovery" {
+    b2_etcd: "📦 Backblaze B2: k3s-etcd/\n(6-Hour Snapshots)" { shape: cylinder }
+    b2_cnpg: "📦 Backblaze B2: cnpg/\n(Continuous WAL & Base Backup)" { shape: cylinder }
+  }
+}
+
+# Explicit Vertical Tier Flow (Stacking)
+layer1 -> k3s_nodes: "" { style.opacity: 0 }
+k3s_nodes -> management: "" { style.opacity: 0 }
+
+# Ingress to Workloads
+layer1.traefik -> k3s_nodes.node1.api1: "HTTPRoute: api.aligneryoga.com" { style.stroke: "#059669" }
+layer1.traefik -> k3s_nodes.node2.api2: "HTTPRoute: api.aligneryoga.com" { style.stroke: "#059669" }
+layer1.traefik -> k3s_nodes.node3.api3: "HTTPRoute: api.aligneryoga.com" { style.stroke: "#059669" }
+layer1.traefik -> k3s_nodes.node1.dev_api: "HTTPRoute: test.aligneryoga.com" { style.stroke: "#D97706" }
+
+# Embedded etcd Quorum
+k3s_nodes.node1.etcd1 <-> k3s_nodes.node2.etcd2: "etcd Quorum" { style.stroke: "#6366F1"; style.bold: true }
+k3s_nodes.node2.etcd2 <-> k3s_nodes.node3.etcd3: "etcd Quorum" { style.stroke: "#6366F1"; style.bold: true }
+
+# PostgreSQL HA Sync Replication
+k3s_nodes.node1.pg1 -> k3s_nodes.node2.pg2: "Sync Streaming WAL Replication" { style.stroke: "#4F46E5"; style.bold: true }
+
+# Pods to DB & Cache
+k3s_nodes.node1.api1 -> k3s_nodes.node1.pg1: "JPA :5432" { style.stroke: "#3B82F6" }
+k3s_nodes.node2.api2 -> k3s_nodes.node1.pg1: "JPA :5432" { style.stroke: "#3B82F6" }
+k3s_nodes.node3.api3 -> k3s_nodes.node1.pg1: "JPA :5432" { style.stroke: "#3B82F6" }
+
+k3s_nodes.node1.api1 -> k3s_nodes.node1.redis: "Session Cache :6379" { style.stroke: "#DC2626" }
+k3s_nodes.node2.api2 -> k3s_nodes.node1.redis: "Session Cache :6379" { style.stroke: "#DC2626" }
+k3s_nodes.node3.api3 -> k3s_nodes.node1.redis: "Session Cache :6379" { style.stroke: "#DC2626" }
+
+# GitOps Sync
+management.gitops_box.github -> k3s_nodes.node3.argo_ctrl: "Continuous Sync (App-of-Apps)" { style.stroke: "#EA580C"; style.stroke-dash: 4 }
+k3s_nodes.node3.argo_ctrl -> k3s_nodes.node2.argo_server: "Self-Heal Reconcile" { style.stroke: "#EA580C"; style.stroke-dash: 4 }
+
+# SRE to Argo UI via Tailscale Ingress
+management.sre_box.tailnet -> k3s_nodes.node2.ts_ingress: "Private HTTPS" { style.stroke: "#475569"; style.stroke-dash: 4 }
+k3s_nodes.node2.ts_ingress -> k3s_nodes.node2.argo_server: "Argo CD UI" { style.stroke: "#475569" }
+
+# Backup to B2
+k3s_nodes.node3.etcd3 -> management.backup_box.b2_etcd: "Snapshot" { style.stroke: "#64748B"; style.stroke-dash: 4 }
+k3s_nodes.node3.cnpg_ctrl -> management.backup_box.b2_cnpg: "WAL Archive" { style.stroke: "#64748B"; style.stroke-dash: 4 }
