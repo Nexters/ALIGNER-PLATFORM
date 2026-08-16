@@ -4,7 +4,7 @@ import pathlib
 import unittest
 
 
-SPEC = importlib.util.spec_from_file_location("validate_postgresql_pitr", pathlib.Path(__file__).with_name("validate_postgresql_pitr.py"))
+SPEC = importlib.util.spec_from_file_location("validate_postgresql_pitr", pathlib.Path(__file__).resolve().parent.parent / "validate_postgresql_pitr.py")
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 

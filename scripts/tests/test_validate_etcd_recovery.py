@@ -4,7 +4,7 @@ import pathlib
 import unittest
 
 
-SPEC = importlib.util.spec_from_file_location("validate_etcd_recovery", pathlib.Path(__file__).with_name("validate_etcd_recovery.py"))
+SPEC = importlib.util.spec_from_file_location("validate_etcd_recovery", pathlib.Path(__file__).resolve().parent.parent / "validate_etcd_recovery.py")
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
