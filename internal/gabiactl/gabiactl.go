@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/netip"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
@@ -19,68 +18,7 @@ import (
 
 const stateFile = ".runtime/gabiactl-state.json"
 
-var environmentName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
-
-// Desired is the documented desired-infrastructure YAML shape. It intentionally
-// omits cloud credentials and unverified API-specific request fields.
-type Desired struct {
-	Version      string       `yaml:"version"`
-	Environment  string       `yaml:"environment"`
-	Network      Network      `yaml:"network"`
-	Servers      Servers      `yaml:"servers"`
-	Volumes      Volumes      `yaml:"volumes"`
-	LoadBalancer LoadBalancer `yaml:"load_balancer"`
-}
-
-type Network struct {
-	VPCCIDR    string `yaml:"vpc_cidr"`
-	SubnetCIDR string `yaml:"subnet_cidr"`
-}
-
-type Servers struct {
-	OSImage *string  `yaml:"os_image"`
-	Flavor  string   `yaml:"flavor"`
-	Count   int      `yaml:"count"`
-	Names   []string `yaml:"names"`
-}
-
-type Volumes struct {
-	DataAGB int `yaml:"data_a_gb"`
-	DataBGB int `yaml:"data_b_gb"`
-}
-
-type LoadBalancer struct {
-	Listeners []Listener `yaml:"listeners"`
-}
-
-type Listener struct {
-	Port       int    `yaml:"port"`
-	Protocol   string `yaml:"protocol"`
-	TargetPort int    `yaml:"target_port"`
-}
-
-// State has no credentials. Its server addresses are only populated after the
-// sandbox captures establish the list/read response schema.
-type State struct {
-	Environment string                   `json:"environment"`
-	Resources   map[string]ResourceState `json:"resources,omitempty"`
-	Servers     map[string]ServerState   `json:"servers"`
-}
-
-// ResourceState contains only the stable cloud ID and addresses required for
-// inventory. It deliberately excludes unverified provider response fields.
-type ResourceState struct {
-	ID        string `json:"id"`
-	PublicIP  string `json:"public_ip,omitempty"`
-	PrivateIP string `json:"private_ip,omitempty"`
-}
-
-type ServerState struct {
-	ID        string `json:"id"`
-	PublicIP  string `json:"public_ip,omitempty"`
-	PrivateIP string `json:"private_ip,omitempty"`
-}
-
+// Run is the main entrypoint for executing gabiactl subcommands.
 func Run(args []string, out io.Writer) error {
 	if len(args) == 0 {
 		return errors.New("usage: gabiactl <validate|plan|apply|status|inventory|access|destroy> -f <file>")
@@ -206,72 +144,6 @@ func loadDesired(args []string) (Desired, error) {
 	return desired, nil
 }
 
-func Validate(d Desired) error {
-	return validateDesired(d, true)
-}
-
-func validateDesired(d Desired, requireImage bool) error {
-	var problems []string
-	if d.Version != "v1" {
-		problems = append(problems, "version must be v1")
-	}
-	if !environmentName.MatchString(d.Environment) {
-		problems = append(problems, "environment is required and must be a lowercase name")
-	}
-	vpc, vpcErr := netip.ParsePrefix(d.Network.VPCCIDR)
-	if vpcErr != nil || !vpc.Addr().Is4() || vpc != vpc.Masked() || vpc.Bits() < 8 || vpc.Bits() > 24 || !isRFC1918(vpc) {
-		problems = append(problems, "network.vpc_cidr must be an RFC1918 IPv4 network with prefix /8 through /24")
-	}
-	subnet, subnetErr := netip.ParsePrefix(d.Network.SubnetCIDR)
-	if subnetErr != nil || !subnet.Addr().Is4() || subnet != subnet.Masked() || subnet.Bits() != 24 {
-		problems = append(problems, "network.subnet_cidr must be an IPv4 /24 network")
-	} else if vpcErr == nil && !vpc.Contains(subnet.Addr()) {
-		problems = append(problems, "network.subnet_cidr must be contained by network.vpc_cidr")
-	}
-	if requireImage && (d.Servers.OSImage == nil || strings.TrimSpace(*d.Servers.OSImage) == "") {
-		problems = append(problems, "servers.os_image must be a confirmed image ID (null closes the apply gate)")
-	}
-	if d.Servers.Flavor == "" {
-		problems = append(problems, "servers.flavor is required")
-	}
-	if d.Servers.Count < 1 || len(d.Servers.Names) != d.Servers.Count {
-		problems = append(problems, "servers.count must match a non-empty servers.names list")
-	}
-	seen := map[string]bool{}
-	for _, name := range d.Servers.Names {
-		if !environmentName.MatchString(name) || seen[name] {
-			problems = append(problems, "servers.names must contain unique lowercase names")
-			break
-		}
-		seen[name] = true
-	}
-	if d.Volumes.DataAGB < 1 || d.Volumes.DataBGB < 1 {
-		problems = append(problems, "volume sizes must be positive")
-	}
-	if len(d.LoadBalancer.Listeners) == 0 {
-		problems = append(problems, "load_balancer.listeners is required")
-	}
-	for _, l := range d.LoadBalancer.Listeners {
-		if !((l.Port == 80 && l.Protocol == "HTTP") || (l.Port == 443 && (l.Protocol == "HTTPS" || l.Protocol == "TCP"))) || l.TargetPort < 1 || l.TargetPort > 65535 {
-			problems = append(problems, "load balancer listeners allow only HTTP/80 or HTTPS/TCP 443 with a valid target_port")
-			break
-		}
-	}
-	if len(problems) > 0 {
-		return errors.New(strings.Join(problems, "; "))
-	}
-	return nil
-}
-
-func isRFC1918(p netip.Prefix) bool {
-	for _, private := range []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("172.16.0.0/12"), netip.MustParsePrefix("192.168.0.0/16")} {
-		if private.Contains(p.Addr()) && private.Contains(p.Masked().Addr()) {
-			return true
-		}
-	}
-	return false
-}
-
 func apiGate(command string) error {
 	return fmt.Errorf("%s blocked: Gabia write API sandbox gate is not complete; no API request or state mutation was made", command)
 }
@@ -344,8 +216,6 @@ func inventory(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	// Inventory only renders already-recorded addresses. It does not create a
-	// server, so an unresolved image ID must not block public bootstrap access.
 	if err := validateDesired(d, false); err != nil {
 		return err
 	}
@@ -379,8 +249,8 @@ func inventory(args []string, out io.Writer) error {
 		"k3s_first_server":    map[string]any{"hosts": groupHosts(d.Servers.Names[:1])},
 		"management_gateways": map[string]any{"hosts": groupHosts(d.Servers.Names[:2])},
 	}
-	var inventory bytes.Buffer
-	encoder := yaml.NewEncoder(&inventory)
+	var inventoryBuf bytes.Buffer
+	encoder := yaml.NewEncoder(&inventoryBuf)
 	if err := encoder.Encode(map[string]any{"all": map[string]any{
 		"hosts": hosts, "vars": map[string]string{"vpc_cidr": d.Network.VPCCIDR}, "children": children,
 	}}); err != nil {
@@ -389,7 +259,7 @@ func inventory(args []string, out io.Writer) error {
 	if err := encoder.Close(); err != nil {
 		return err
 	}
-	if err := writePrivateFile(*output, inventory.Bytes()); err != nil {
+	if err := writePrivateFile(*output, inventoryBuf.Bytes()); err != nil {
 		return err
 	}
 	_, err = fmt.Fprintln(out, *output)
@@ -461,12 +331,4 @@ func access(args []string, out io.Writer) error {
 		}
 	}
 	return apiGate("access " + args[0])
-}
-
-var authorizationValue = regexp.MustCompile(`(?im)(authorization\s*:\s*)[^\r\n]*`)
-var secretValue = regexp.MustCompile(`(?i)((?:x-cloud-session|password|token)\s*[:=]\s*)([^\s,;]+)`)
-
-// Redact keeps errors and future API diagnostics from exposing credential values.
-func Redact(message string) string {
-	return secretValue.ReplaceAllString(authorizationValue.ReplaceAllString(message, "$1[REDACTED]"), "$1[REDACTED]")
 }

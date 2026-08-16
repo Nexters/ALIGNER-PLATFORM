@@ -17,6 +17,12 @@ spec:
         app.kubernetes.io/name: redis
         app.kubernetes.io/part-of: aligner
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: redis
           image: redis:7.4.2-alpine
@@ -26,6 +32,22 @@ spec:
             - ""
             - --appendonly
             - "no"
+            - --maxmemory
+            - "200mb"
+            - --maxmemory-policy
+            - "allkeys-lru"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
           ports:
             - name: redis
               containerPort: 6379

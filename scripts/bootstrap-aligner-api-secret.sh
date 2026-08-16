@@ -162,7 +162,7 @@ while IFS= read -r line || [ -n "$line" ]; do
 done < "$SECRET_FILE"
 
 MISSING_KEYS=()
-for req_key in ${REQUIRED_KEYS[@]+"${REQUIRED_KEYS[@]}"}; do
+for req_key in "${REQUIRED_KEYS[@]}"; do
   if [ -z "${FOUND_KEYS[$req_key]:-}" ]; then
     MISSING_KEYS+=("$req_key")
   fi
@@ -170,7 +170,7 @@ done
 
 if [ ${#MISSING_KEYS[@]} -ne 0 ]; then
   echo "ERROR: Secret file '$SECRET_FILE' is missing required keys from $(basename "$KEYS_FILE"):" >&2
-  for mkey in ${MISSING_KEYS[@]+"${MISSING_KEYS[@]}"}; do
+  for mkey in "${MISSING_KEYS[@]}"; do
     echo "  - $mkey" >&2
   done
   exit 1
@@ -207,11 +207,11 @@ kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} create secret generic aligner-ap
 echo "✓ Secret 'aligner-api-secrets' applied successfully in namespace '$NAMESPACE'."
 
 # 5. Restart Deployment if present
-deployments=$(kubectl "${KUBECTL_ARGS[@]}" get deployments -n "$NAMESPACE" -l "app.kubernetes.io/part-of=aligner" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+deployments=$(kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} get deployments -n "$NAMESPACE" -l "app.kubernetes.io/part-of=aligner" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
 
 if [ -z "$deployments" ]; then
   for candidate in "aligner-api" "aligner-sandbox-api"; do
-    if kubectl "${KUBECTL_ARGS[@]}" get deployment "$candidate" -n "$NAMESPACE" >/dev/null 2>&1; then
+    if kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} get deployment "$candidate" -n "$NAMESPACE" >/dev/null 2>&1; then
       deployments="$candidate"
       break
     fi
@@ -220,8 +220,8 @@ fi
 
 if [ -n "$deployments" ]; then
   for dep in $deployments; do
-    echo "Restarting deployment '$dep' in namespace '$NAMESPACE'..."
-    kubectl "${KUBECTL_ARGS[@]}" rollout restart deployment/"$dep" -n "$NAMESPACE"
+    echo "Triggering rollout restart for deployment '$dep' in namespace '$NAMESPACE'..."
+    kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} rollout restart deployment/"$dep" -n "$NAMESPACE"
     echo "✓ Rollout restart triggered for deployment '$dep'."
   done
 else

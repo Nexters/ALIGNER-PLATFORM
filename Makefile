@@ -1,4 +1,4 @@
-.PHONY: lint collections render bootstrap-access bootstrap-inventory bootstrap-management bootstrap-firewall inventory lockdown site verify verify-cilium test-verify test-failover-drill test-etcd-recovery test-k3s-cilium-upgrade test-full-rebuild test-postgresql-pitr test-bootstrap-secret test-update-image
+.PHONY: lint collections render bootstrap-access bootstrap-inventory bootstrap-management bootstrap-firewall inventory lockdown site verify verify-cilium test-verify test-failover-drill test-etcd-recovery test-k3s-cilium-upgrade test-full-rebuild test-postgresql-pitr test-bootstrap-secret test-update-image test
 
 ANSIBLE_CONFIG := $(CURDIR)/ansible/ansible.cfg
 ANSIBLE_COLLECTIONS_PATH := $(CURDIR)/.ansible/collections
@@ -87,5 +87,5 @@ test-bootstrap-secret:
 test-update-image:
 	python3 scripts/tests/test_update_aligner_api_image.py
 
-test: test-verify test-bootstrap-secret test-update-image
+test: test-verify test-failover-drill test-etcd-recovery test-k3s-cilium-upgrade test-full-rebuild test-postgresql-pitr test-bootstrap-secret test-update-image
 
