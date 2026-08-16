@@ -5,7 +5,7 @@ metadata:
   namespace: aligner-data
 spec:
   instances: 2
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.5
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.8
   bootstrap:
     initdb:
       database: aligner
