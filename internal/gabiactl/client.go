@@ -161,18 +161,25 @@ func (c *Client) get(ctx context.Context, path string) (int, error) {
 		c.mu.Unlock()
 		u := *c.cloud
 		u.Path = strings.TrimRight(u.Path, "/") + path
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+
+		statusCode, err := func() (int, error) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+			if err != nil {
+				return 0, err
+			}
+			req.Header.Set("X-Cloud-Session", session)
+			resp, err := c.httpClient.Do(req)
+			if err != nil {
+				return 0, fmt.Errorf("Gabia read %s: %w", path, err)
+			}
+			defer resp.Body.Close()
+			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+			return resp.StatusCode, nil
+		}()
 		if err != nil {
 			return 0, err
 		}
-		req.Header.Set("X-Cloud-Session", session)
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			return 0, fmt.Errorf("Gabia read %s: %w", path, err)
-		}
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
-		_ = resp.Body.Close()
-		if attempt == 0 && (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden) {
+		if attempt == 0 && (statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden) {
 			c.mu.Lock()
 			if c.session == session {
 				c.session = ""
@@ -180,7 +187,7 @@ func (c *Client) get(ctx context.Context, path string) (int, error) {
 			c.mu.Unlock()
 			continue
 		}
-		return resp.StatusCode, nil
+		return statusCode, nil
 	}
 	return 0, errors.New("Gabia session reauthentication failed")
 }

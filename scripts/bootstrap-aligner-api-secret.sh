@@ -162,7 +162,7 @@ while IFS= read -r line || [ -n "$line" ]; do
 done < "$SECRET_FILE"
 
 MISSING_KEYS=()
-for req_key in ${REQUIRED_KEYS[@]+"${REQUIRED_KEYS[@]}"}; do
+for req_key in "${REQUIRED_KEYS[@]}"; do
   if [ -z "${FOUND_KEYS[$req_key]:-}" ]; then
     MISSING_KEYS+=("$req_key")
   fi
@@ -170,7 +170,7 @@ done
 
 if [ ${#MISSING_KEYS[@]} -ne 0 ]; then
   echo "ERROR: Secret file '$SECRET_FILE' is missing required keys from $(basename "$KEYS_FILE"):" >&2
-  for mkey in ${MISSING_KEYS[@]+"${MISSING_KEYS[@]}"}; do
+  for mkey in "${MISSING_KEYS[@]}"; do
     echo "  - $mkey" >&2
   done
   exit 1
@@ -193,16 +193,16 @@ elif [ -f "$repo_root/.runtime/kubeconfig" ]; then
 fi
 
 # 4. Ensure Namespace exists & Apply Secret aligner-api-secrets
-if ! kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} get namespace "$NAMESPACE" >/dev/null 2>&1; then
+if ! kubectl "${KUBECTL_ARGS[@]}" get namespace "$NAMESPACE" >/dev/null 2>&1; then
   echo "Namespace '$NAMESPACE' does not exist; creating namespace..."
-  kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} create namespace "$NAMESPACE"
+  kubectl "${KUBECTL_ARGS[@]}" create namespace "$NAMESPACE"
 fi
 
 echo "Applying secret 'aligner-api-secrets' in namespace '$NAMESPACE'..."
-kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} create secret generic aligner-api-secrets \
+kubectl "${KUBECTL_ARGS[@]}" create secret generic aligner-api-secrets \
   --namespace="$NAMESPACE" \
   --from-env-file="$clean_env_file" \
-  --dry-run=client -o yaml | kubectl ${KUBECTL_ARGS[@]+"${KUBECTL_ARGS[@]}"} apply -f -
+  --dry-run=client -o yaml | kubectl "${KUBECTL_ARGS[@]}" apply -f -
 
 echo "✓ Secret 'aligner-api-secrets' applied successfully in namespace '$NAMESPACE'."
 

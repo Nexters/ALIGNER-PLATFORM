@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Validate secret-free evidence for the issue #33 etcd recovery drill."""
+"""Validates the structure and correctness of etcd disaster recovery evidence."""
+from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
-
+import re
+from typing import Any, Iterator
 
 ALLOWED_STATUS = {"NOT_EXECUTED", "PASS", "FAIL"}
 FORBIDDEN_FIELD = re.compile(
@@ -15,7 +16,7 @@ FORBIDDEN_FIELD = re.compile(
 )
 
 
-def secret_like_keys(value):
+def secret_like_keys(value: Any) -> Iterator[str]:
     if isinstance(value, dict):
         for key, nested in value.items():
             if isinstance(key, str) and FORBIDDEN_FIELD.search(key):
@@ -26,12 +27,12 @@ def secret_like_keys(value):
             yield from secret_like_keys(nested)
 
 
-def is_non_negative_number(value):
+def is_non_negative_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0
 
 
-def validate(result):
-    errors = []
+def validate(result: Any) -> list[str]:
+    errors: list[str] = []
     if not isinstance(result, dict):
         return ["result must be an object"]
     if result.get("issue") != 33:
@@ -55,11 +56,22 @@ def validate(result):
         errors.append("missing required fields: " + ",".join(sorted(missing)))
 
     snapshot = result.get("snapshot")
-    if not isinstance(snapshot, dict) or not isinstance(snapshot.get("b2_object"), str) or not isinstance(snapshot.get("created_at_utc"), str) or not is_non_negative_number(snapshot.get("size_bytes")) or not isinstance(snapshot.get("checksum"), str):
+    if (
+        not isinstance(snapshot, dict)
+        or not isinstance(snapshot.get("b2_object"), str)
+        or not isinstance(snapshot.get("created_at_utc"), str)
+        or not is_non_negative_number(snapshot.get("size_bytes"))
+        or not isinstance(snapshot.get("checksum"), str)
+    ):
         errors.append("snapshot must contain b2_object, created_at_utc, non-negative size_bytes, and checksum")
 
     token = result.get("original_token_off_cluster_evidence")
-    if not isinstance(token, dict) or token.get("storage") != "off-cluster" or token.get("present") is not True or set(token) != {"storage", "present"}:
+    if (
+        not isinstance(token, dict)
+        or token.get("storage") != "off-cluster"
+        or token.get("present") is not True
+        or set(token) != {"storage", "present"}
+    ):
         errors.append("original_token_off_cluster_evidence must prove off-cluster original token presence without its value")
 
     production, recovery = result.get("production_environment"), result.get("recovery_environment")
@@ -78,7 +90,12 @@ def validate(result):
         errors.append("etcd_members_after_first must be 1")
 
     joins = result.get("sequential_server_joins")
-    if not isinstance(joins, list) or len(joins) != 2 or not all(isinstance(server, str) and server for server in joins) or len(set(joins)) != 2:
+    if (
+        not isinstance(joins, list)
+        or len(joins) != 2
+        or not all(isinstance(server, str) and server for server in joins)
+        or len(set(joins)) != 2
+    ):
         errors.append("sequential_server_joins must contain two distinct servers")
     if result.get("etcd_members") != 3:
         errors.append("etcd_members must be 3")
@@ -87,7 +104,11 @@ def validate(result):
 
     counts = result.get("kubernetes_resource_counts")
     count_fields = {"namespaces", "crds", "secrets"}
-    if not isinstance(counts, dict) or set(counts) != count_fields or not all(is_non_negative_number(counts.get(field)) for field in count_fields):
+    if (
+        not isinstance(counts, dict)
+        or set(counts) != count_fields
+        or not all(is_non_negative_number(counts.get(field)) for field in count_fields)
+    ):
         errors.append("kubernetes_resource_counts must contain only non-negative namespaces, crds, and secrets counts")
     if not isinstance(result.get("gitops_reconciled"), bool):
         errors.append("gitops_reconciled must be boolean")
@@ -98,7 +119,11 @@ def validate(result):
     for field in ("rpo_seconds", "rto_seconds"):
         if not is_non_negative_number(result.get(field)):
             errors.append(field + " must be a non-negative number")
-    if not isinstance(result.get("manual_actions"), list) or not result.get("manual_actions") or not all(isinstance(action, str) and action for action in result.get("manual_actions")):
+    if (
+        not isinstance(result.get("manual_actions"), list)
+        or not result.get("manual_actions")
+        or not all(isinstance(action, str) and action for action in result.get("manual_actions"))
+    ):
         errors.append("manual_actions must be a non-empty list of action records")
 
     cleanup = result.get("cleanup")
@@ -117,7 +142,7 @@ def validate(result):
     return errors
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--result", required=True)
     args = parser.parse_args()

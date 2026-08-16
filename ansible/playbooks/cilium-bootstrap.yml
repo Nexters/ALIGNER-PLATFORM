@@ -6,12 +6,9 @@
   gather_facts: false
   tasks:
     - name: Read kubeconfig for local Cilium bootstrap
-      ansible.builtin.command:
-        argv:
-          - cat
-          - /etc/rancher/k3s/k3s.yaml
-      register: cilium_kubeconfig_contents
-      changed_when: false
+      ansible.builtin.slurp:
+        src: /etc/rancher/k3s/k3s.yaml
+      register: cilium_kubeconfig_slurp
       no_log: true
 
 - name: Install minimal Cilium CNI
@@ -21,6 +18,6 @@
   vars:
     cilium_version: "1.20.0"
     cluster_cidr: "10.42.0.0/16"
-    cilium_kubeconfig: "{{ hostvars[groups['k3s_first_server'][0]].cilium_kubeconfig_contents.stdout }}"
+    cilium_kubeconfig: "{{ hostvars[groups['k3s_first_server'][0]].cilium_kubeconfig_slurp.content | b64decode }}"
   roles:
     - cilium
