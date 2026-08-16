@@ -1,5 +1,5 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# Application delivery is runtime-gated. Each app directory is added only after
-# its image, health checks, capacity evidence, and external dependencies pass review.
-resources: []
+resources:
+  - aligner-sandbox/base
+  - aligner-api/overlays/normal
