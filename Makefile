@@ -70,16 +70,16 @@ test-failover-drill:
 	python3 scripts/tests/test_node_failover_drill.py
 
 test-etcd-recovery:
-	python3 scripts/test_validate_etcd_recovery.py
+	python3 scripts/tests/test_validate_etcd_recovery.py
 
 test-k3s-cilium-upgrade:
-	python3 scripts/test_validate_k3s_cilium_upgrade.py
+	python3 scripts/tests/test_validate_k3s_cilium_upgrade.py
 
 test-full-rebuild:
-	python3 scripts/test_validate_full_rebuild.py
+	python3 scripts/tests/test_validate_full_rebuild.py
 
 test-postgresql-pitr:
-	python3 scripts/test_validate_postgresql_pitr.py
+	python3 scripts/tests/test_validate_postgresql_pitr.py
 
 test-bootstrap-secret:
 	python3 scripts/tests/test_bootstrap_aligner_api_secret.py
