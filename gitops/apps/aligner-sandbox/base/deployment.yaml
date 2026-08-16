@@ -44,23 +44,18 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "dev"
-            - name: ACTUATOR_BASE_PATH
-              valueFrom:
-                secretKeyRef:
-                  name: aligner-api-secrets
-                  key: ACTUATOR_BASE_PATH
           envFrom:
             - secretRef:
                 name: aligner-api-secrets
           readinessProbe:
             httpGet:
-              path: $(ACTUATOR_BASE_PATH)/health/readiness
+              path: /actuator/health/readiness
               port: 8080
             initialDelaySeconds: 15
             periodSeconds: 5
           livenessProbe:
             httpGet:
-              path: $(ACTUATOR_BASE_PATH)/health/liveness
+              path: /actuator/health/liveness
               port: 8080
             initialDelaySeconds: 20
             periodSeconds: 10
