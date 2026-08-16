@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.2.0](https://github.com/Nexters/ALIGNER-PLATFORM/compare/aligner-platform-v0.1.0...aligner-platform-v0.2.0) (2026-08-16)
+
+
+### ✨ 신규 인프라 기능 (Features)
+
+* **gitops:** Argo CD App-of-Apps 활성화 및 K8s 표준 헬스체크 프로브 연동 ([#88](https://github.com/Nexters/ALIGNER-PLATFORM/issues/88)) ([e75011e](https://github.com/Nexters/ALIGNER-PLATFORM/commit/e75011ea6cafff25ddf5f997e3fd30edb8e741a9))
+* **gitops:** data.yaml 및 apps.yaml (sandbox/api) 활성화하여 Argo CD 전체 워크로드 타일 연동 ([#87](https://github.com/Nexters/ALIGNER-PLATFORM/issues/87)) ([b404003](https://github.com/Nexters/ALIGNER-PLATFORM/commit/b404003ab97d2325b9ab7892535f8e0cc58322f5))
+
+
+### 🐛 인프라 수정 (Fixes)
+
+* **ci:** release-please-action 태그를 [@v4](https://github.com/v4)로 수정 ([3f0a6b3](https://github.com/Nexters/ALIGNER-PLATFORM/commit/3f0a6b3dd166360d78e1d80b7680e7891f7b7031))
+* PodSecurity restricted 규격 준수를 위한 컨테이너 보안 컨텍스트 추가 ([8c51360](https://github.com/Nexters/ALIGNER-PLATFORM/commit/8c51360b7e513b1e26ad3ad575426764b119f840))
+
+
+### ♻️ 구조 개선 (Refactoring)
+
+* **repo:** 불필요한 레거시 디렉터리, .gitkeep 및 스크립트 구조 정비 ([#83](https://github.com/Nexters/ALIGNER-PLATFORM/issues/83)) ([#84](https://github.com/Nexters/ALIGNER-PLATFORM/issues/84)) ([756cda6](https://github.com/Nexters/ALIGNER-PLATFORM/commit/756cda604cfe96c12c9b3af011f6f47f6c75436c))
+* 코드 스멜 제거, 보안 강화 및 가독성 레이어링 리팩토링 ([#86](https://github.com/Nexters/ALIGNER-PLATFORM/issues/86)) ([5cb7067](https://github.com/Nexters/ALIGNER-PLATFORM/commit/5cb70671684be6e3e065d0497d198269dba66a7d))
+
 ## 0.1.0 (2026-08-15)
 
 
