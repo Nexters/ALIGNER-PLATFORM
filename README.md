@@ -80,7 +80,7 @@ gitops/
 │   └── redis/                               # Redis LRU In-Memory Cache
 └── apps/                                    # [Wave 3] Business Applications
     ├── aligner-api/                         # Production Environment (api.aligneryoga.com, 3-Pod HA)
-    └── aligner-sandbox-api/                 # Dev/Sandbox Environment (test.aligneryoga.com)
+    └── aligner-sandbox-api/                 # Dev/Sandbox Environment (dev-api.aligneryoga.com)
 ```
 
 ---

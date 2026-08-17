@@ -10,6 +10,7 @@ spec:
   hostnames:
     - api.aligneryoga.com
     - aligneryoga.com
+    - dev-api.aligneryoga.com
     - test.aligneryoga.com
   rules:
     - filters:
