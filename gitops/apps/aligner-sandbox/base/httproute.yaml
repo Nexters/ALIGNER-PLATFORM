@@ -15,7 +15,6 @@ spec:
       sectionName: https
   hostnames:
     - dev-api.aligneryoga.com
-    - test.aligneryoga.com
   rules:
     - matches:
         - path:

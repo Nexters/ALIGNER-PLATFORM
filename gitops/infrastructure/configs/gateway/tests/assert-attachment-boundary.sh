@@ -44,7 +44,6 @@ grep -q 'scheme: https' "$redirect"
 grep -q 'api.aligneryoga.com' "$redirect"
 grep -q 'aligneryoga.com' "$redirect"
 grep -q 'dev-api.aligneryoga.com' "$redirect"
-grep -q 'test.aligneryoga.com' "$redirect"
 
 # 6. No .invalid placeholder hostnames in manifests
 if grep -Eq '\.invalid' "$runtime_dir"/*.yaml "$gateway_dir"/*.yaml; then
