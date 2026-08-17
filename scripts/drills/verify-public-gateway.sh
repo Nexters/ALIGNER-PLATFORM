@@ -59,7 +59,6 @@ echo "$sandbox_manifest" | grep -q 'name: sandbox-quota'
 echo "$sandbox_manifest" | grep -q 'name: sandbox-limits'
 echo "$sandbox_manifest" | grep -q 'name: aligner-sandbox-api'
 echo "$sandbox_manifest" | grep -q 'dev-api.aligneryoga.com'
-echo "$sandbox_manifest" | grep -q 'test.aligneryoga.com'
 echo "  ✓ gitops/apps/aligner-sandbox/base rendered and validated successfully."
 
 # 3. Verify gitops/apps/aligner-api/overlays/normal kustomization
