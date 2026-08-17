@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/Nexters/ALIGNER-PLATFORM/compare/aligner-platform-v0.2.1...aligner-platform-v0.3.0) (2026-08-17)
+
+
+### ✨ 신규 인프라 기능 (Features)
+
+* **gateway:** 개발 샌드박스 백엔드 도메인을 dev-api.aligneryoga.com 으로 전환 ([5dd82fc](https://github.com/Nexters/ALIGNER-PLATFORM/commit/5dd82fcbe08ac1651ede6f1ef460f23ddbe26b33))
+
+
+### 🔧 설정 및 도구 (Maintenance)
+
+* **gateway:** 구 test.aligneryoga.com 완전 정리 및 dev-api 단일화 ([226608b](https://github.com/Nexters/ALIGNER-PLATFORM/commit/226608be7754bfc01bd013e4571bd5cdc26f1edb))
+
 ## [0.2.1](https://github.com/Nexters/ALIGNER-PLATFORM/compare/aligner-platform-v0.2.0...aligner-platform-v0.2.1) (2026-08-16)
 
 
