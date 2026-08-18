@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.1](https://github.com/Nexters/ALIGNER-PLATFORM/compare/aligner-platform-v0.3.0...aligner-platform-v0.3.1) (2026-08-18)
+
+
+### 🐛 인프라 수정 (Fixes)
+
+* **network-policy:** aligner-api 파드의 외부 HTTPS(카카오/YMOVE) 통신 허용 ([#93](https://github.com/Nexters/ALIGNER-PLATFORM/issues/93)) ([c969ac3](https://github.com/Nexters/ALIGNER-PLATFORM/commit/c969ac3934d9eb99de427a1c79d668ca4025c063))
+
+
+### 🔧 설정 및 도구 (Maintenance)
+
+* 레거시 .kubediagrams.yaml 및 생성 스크립트 삭제 ([#91](https://github.com/Nexters/ALIGNER-PLATFORM/issues/91)) ([80444a8](https://github.com/Nexters/ALIGNER-PLATFORM/commit/80444a8bdbddbed1454e15f5faa1c8ffef42db8c))
+
 ## [0.3.0](https://github.com/Nexters/ALIGNER-PLATFORM/compare/aligner-platform-v0.2.1...aligner-platform-v0.3.0) (2026-08-17)
 
 
