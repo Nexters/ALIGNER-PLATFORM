@@ -1,0 +1,14 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: aligner-api-allow-external-https
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: aligner-api
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 443
