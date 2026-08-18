@@ -10,4 +10,5 @@ resources:
   - allow-gateway.yaml
   - allow-dns.yaml
   - allow-data.yaml
+  - allow-external-https.yaml
   - httproute.yaml
