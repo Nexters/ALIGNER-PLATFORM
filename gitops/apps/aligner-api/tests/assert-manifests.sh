@@ -46,8 +46,8 @@ for overlay in normal degraded maintenance; do
   rg -q 'aligner-api-default-deny' "$render_dir/$overlay.yaml"
   rg -q 'readinessProbe:' "$render_dir/$overlay.yaml"
   rg -q 'livenessProbe:' "$render_dir/$overlay.yaml"
+  rg -q 'aligner-api-allow-external-https' "$render_dir/$overlay.yaml"
   assert_not_found '^kind: Namespace$' "$render_dir/$overlay.yaml"
-  assert_not_found 'port: 443' "$render_dir/$overlay.yaml"
 done
 
 rg -q 'aligner-postgresql-rw' "$repo_root/gitops/apps/aligner-api/README.md"

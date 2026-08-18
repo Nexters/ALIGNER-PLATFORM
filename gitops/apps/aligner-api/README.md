@@ -18,12 +18,9 @@ maintenance `1/1` (replicas/minAvailable).
 
 `allow-data.yaml` allows the CNPG cluster selected by `cnpg.io/cluster=aligner-db`
 (the `aligner-postgresql-rw` Service) on 5432 and `aligner-redis` on 6379.
-Verify those endpoint labels in the cluster before rollout. The standard
-Kubernetes `NetworkPolicy` implementation used by Cilium cannot express an
-HTTPS hostname: no external HTTPS policy is shipped until approved destination
-CIDRs are supplied. A `0.0.0.0/0:443` rule would allow any IP sharing a DNS
-answer and is not an acceptable substitute; use reviewed fixed CIDRs or a
-separate Cilium FQDN policy after testing DNS churn.
+Verify those endpoint labels in the cluster before rollout. `allow-external-https.yaml`
+allows outbound TCP 443 egress for verified external OAuth/Catalog dependencies
+(Kakao OAuth token/user-info at kauth.kakao.com/kapi.kakao.com and YMOVE API).
 
 The HTTPRoute follows the Gateway runtime handoff. It remains unaccepted until
 the existing `aligner` Namespace is labelled `gateway-access=true`; this app
