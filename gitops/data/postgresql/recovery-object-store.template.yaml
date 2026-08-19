@@ -1,0 +1,25 @@
+# Recovery ObjectStore Template for PITR Drill in isolated namespace
+#
+# Usage:
+#   export B2_BUCKET="aligner-prod-backup"
+#   export B2_REGION="us-west-004"
+#   envsubst < gitops/data/postgresql/recovery-object-store.template.yaml | kubectl apply -f -
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: aligner-b2-backup
+  namespace: aligner-pitr-drill
+spec:
+  configuration:
+    destinationPath: "s3://${B2_BUCKET}/cnpg/"
+    endpointURL: "https://s3.${B2_REGION}.backblazeb2.com"
+    s3Credentials:
+      accessKeyId:
+        name: aligner-postgresql-b2-reader
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: aligner-postgresql-b2-reader
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+      maxParallel: 2

@@ -8,8 +8,8 @@ spec:
   imageName: ghcr.io/cloudnative-pg/postgresql:16.8
   bootstrap:
     initdb:
-      database: aligner
-      owner: aligner
+      database: aligner_prod
+      owner: aligner_prod_user
       secret:
         name: aligner-postgresql-app
   storage:
