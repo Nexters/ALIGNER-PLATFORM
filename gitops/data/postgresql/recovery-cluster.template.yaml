@@ -18,6 +18,13 @@ spec:
   storage:
     size: 30Gi
     storageClass: aligner-local-path
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
   bootstrap:
     recovery:
       source: aligner-db-backup-source

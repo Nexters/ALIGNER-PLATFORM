@@ -22,31 +22,49 @@ CloudNativePG (CNPG) v1.30.0과 **Barman Cloud Plugin v0.14.0**을 활용하여 
 | **`aligner-postgresql-b2-writer`** | 운영 Primary WAL 업로드 및 일일 풀 백업 | `aligner-prod-backup`<br>`cnpg/*` | `listFiles`<br>`readFiles`<br>`writeFiles`<br>`deleteFiles` | 30일 retention 만료 파일 정리를 위해 `deleteFiles` 필수 |
 | **`aligner-postgresql-b2-reader`** | PITR 복구 드릴 및 재해 복구 검증 | `aligner-prod-backup`<br>`cnpg/*` | `listFiles`<br>`readFiles` | 운영 데이터 오염 방지 (`deleteFiles`/`writeFiles` 절대 금지, 드릴 후 폐기) |
 
-### Kubernetes Secret 주입 예시 (Out-of-band)
+### Kubernetes Secret 주입 예시 (Out-of-band, 0600 안전 주입)
 ```bash
 # 1. Writer Secret (운영 네임스페이스)
-kubectl create secret generic aligner-postgresql-b2-writer \
-  -n aligner-data \
-  --from-literal=ACCESS_KEY_ID="<B2_WRITER_KEY_ID>" \
-  --from-literal=ACCESS_SECRET_KEY="<B2_WRITER_APPLICATION_KEY>"
+(
+  umask 077
+  tmp=$(mktemp)
+  cat > "$tmp" <<EOF
+ACCESS_KEY_ID=$B2_WRITER_KEY_ID
+ACCESS_SECRET_KEY=$B2_WRITER_APPLICATION_KEY
+EOF
+  kubectl create secret generic aligner-postgresql-b2-writer \
+    -n aligner-data \
+    --from-env-file="$tmp"
+  rm -f "$tmp"
+)
 
 # 2. Reader Secret (격리 복구 네임스페이스 - 드릴 전 임시 생성)
-kubectl create secret generic aligner-postgresql-b2-reader \
-  -n aligner-pitr-drill \
-  --from-literal=ACCESS_KEY_ID="<B2_READER_KEY_ID>" \
-  --from-literal=ACCESS_SECRET_KEY="<B2_READER_APPLICATION_KEY>"
+(
+  umask 077
+  tmp=$(mktemp)
+  cat > "$tmp" <<EOF
+ACCESS_KEY_ID=$B2_READER_KEY_ID
+ACCESS_SECRET_KEY=$B2_READER_APPLICATION_KEY
+EOF
+  kubectl create secret generic aligner-postgresql-b2-reader \
+    -n aligner-pitr-drill \
+    --from-env-file="$tmp"
+  rm -f "$tmp"
+)
 ```
 
 ---
 
 ## 3. Node-loss Failover 드릴
 
-1. primary가 위치한 노드를 확인한다:
+1. primary Pod 및 위치한 Node(VM)를 확인한다:
    ```bash
    PRIMARY=$(kubectl get cluster aligner-db -n aligner-data -o jsonpath='{.status.currentPrimary}')
-   echo "Current Primary Pod: $PRIMARY"
+   PRIMARY_NODE=$(kubectl get pod "$PRIMARY" -n aligner-data -o jsonpath='{.spec.nodeName}')
+   echo "Primary Pod : $PRIMARY"
+   echo "Primary Node: $PRIMARY_NODE"
    ```
-2. 가비아 콘솔 또는 인프라 레벨에서 해당 VM을 강제 정지한다.
+2. 가비아 콘솔 또는 인프라 레벨에서 해당 VM(`PRIMARY_NODE`)을 강제 정지한다.
 3. CNPG 클러스터 상태와 새 primary 선출을 관찰한다 (`kubectl get pods -n aligner-data -w`).
 4. 애플리케이션 쓰기 재개 시간을 기록한다.
 5. 장애 노드 복구 후 standby가 30분 안에 정상 재구성되는지 확인한다.
@@ -64,16 +82,16 @@ kubectl create secret generic aligner-postgresql-b2-reader \
    │
    ├── 1단계: Drill Table 생성, Marker A 삽입 & WAL flush ──► 기준 행 수 N_A, 체크섬 C_A 기록
    │                                                             │
-   │                                                             ├── 2단계: TARGET_TIME (UTC) 기록
+   │                                                             ├── 2단계: TARGET_TIME (PostgreSQL clock_timestamp()) 기록
    │                                                             │
-   ├── 3단계: Marker B 삽입 & WAL flush ─────────────────────────► (T > TARGET_TIME)
+   ├── 3단계: Marker B 삽입, WAL switch & B2 archive 확인 ──────► (T > TARGET_TIME)
    │
    └── (B2 s3://aligner-prod-backup/cnpg/ 아카이빙)
                                                                  │
                                                                  ▼
 [복구 DB: aligner-db-recovery (aligner-pitr-drill)]
    │
-   ├── 4단계: Recovery ObjectStore 및 Cluster 기동 (recoveryTarget.targetTime = TARGET_TIME)
+   ├── 4단계: StorageClass, Reader Secret, Recovery ObjectStore 및 Cluster 기동
    │
    ├── 5단계: 정합성 검증:
    │         ├── Marker A: 존재 확인 (1건 -> Pass)
@@ -88,8 +106,10 @@ kubectl create secret generic aligner-postgresql-b2-reader \
 
 ### 1단계: 드릴 테이블 생성, 기준 Marker A 삽입 및 기준값 기록
 ```bash
-# 1. Primary Pod 동적 식별
+# 1. Primary Pod 및 Node 동적 식별
 PRIMARY=$(kubectl get cluster aligner-db -n aligner-data -o jsonpath='{.status.currentPrimary}')
+PRIMARY_NODE=$(kubectl get pod "$PRIMARY" -n aligner-data -o jsonpath='{.spec.nodeName}')
+echo "Target Primary: $PRIMARY on $PRIMARY_NODE"
 
 # 2. 드릴 전용 테이블 생성 및 Marker A 삽입
 kubectl exec -it "$PRIMARY" -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "
@@ -101,45 +121,64 @@ CREATE TABLE IF NOT EXISTS training.pitr_drill_marker (
 INSERT INTO training.pitr_drill_marker (marker, note) VALUES ('drill-marker-A', 'baseline');
 "
 
-# 3. 기준 행 수 및 md5 체크섬 기록
+# 3. 기준 행 수 및 md5 체크섬 기록 (PK 컬럼 session_id 기준)
 kubectl exec -it "$PRIMARY" -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "
 SELECT count(*) FROM training.session;
-SELECT md5(string_agg(id::text, '')) FROM (SELECT id FROM training.session ORDER BY id) s;
+SELECT md5(string_agg(session_id::text, '')) FROM (SELECT session_id FROM training.session ORDER BY session_id) s;
 "
 
 # 4. WAL 강제 flush
 kubectl exec -it "$PRIMARY" -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "SELECT pg_switch_wal();"
 ```
 
-### 2단계: 복구 목표 시각 ($T_{target}$) 기록
+### 2단계: 복구 목표 시각 ($T_{target}$) 기록 (PostgreSQL 시계 도메인 기준)
 ```bash
-export TARGET_TIME=$(date -u +"%Y-%m-%d %H:%M:%S.000000+00")
-echo "Recovery Target Time (UTC): $TARGET_TIME"
+# 운영자 로컬 머신 시각 대신 PostgreSQL 서버의 시계에서 기준 시각을 획득
+TARGET_TIME=$(kubectl exec "$PRIMARY" -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -Atc "SELECT clock_timestamp();")
+export TARGET_TIME
+echo "Recovery Target Time (PostgreSQL Clock): $TARGET_TIME"
 ```
 
-### 3단계: 경계 검증용 Marker B 삽입 (목표 시점 이후 데이터)
+### 3단계: 경계 검증용 Marker B 삽입 및 WAL 아카이브 완료 확인
 ```bash
+# 1. TARGET_TIME 이후 Marker B 삽입
 kubectl exec -it "$PRIMARY" -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "
 INSERT INTO training.pitr_drill_marker (marker, note) VALUES ('drill-marker-B', 'post-cutoff');
 SELECT pg_switch_wal();
+"
+
+# 2. WAL 아카이빙 완료 확인 (B2 업로드 상태 점검)
+kubectl exec -it "$PRIMARY" -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "
+SELECT last_archived_wal, last_archived_time, failed_count FROM pg_stat_archiver;
 "
 ```
 
 ### 4단계: 격리 네임스페이스에 Recovery ObjectStore 및 복구 클러스터 기동
 ```bash
-# 1. 격리 네임스페이스 생성
+# 1. Gate A 전제조건: StorageClass 배포 (미배포 시)
+kubectl apply -f gitops/data/postgresql/storage-class.yaml
+
+# 2. 격리 네임스페이스 생성
 kubectl create namespace aligner-pitr-drill --dry-run=client -o yaml | kubectl apply -f -
 
-# 2. 임시 Reader B2 Secret 생성
-kubectl create secret generic aligner-postgresql-b2-reader \
-  -n aligner-pitr-drill \
-  --from-literal=ACCESS_KEY_ID="$B2_READER_KEY_ID" \
-  --from-literal=ACCESS_SECRET_KEY="$B2_READER_APPLICATION_KEY"
+# 3. 안전한 임시 Reader B2 Secret 생성 (Process argv/shell history 노출 차단)
+(
+  umask 077
+  tmp=$(mktemp)
+  cat > "$tmp" <<EOF
+ACCESS_KEY_ID=$B2_READER_KEY_ID
+ACCESS_SECRET_KEY=$B2_READER_APPLICATION_KEY
+EOF
+  kubectl create secret generic aligner-postgresql-b2-reader \
+    -n aligner-pitr-drill \
+    --from-env-file="$tmp"
+  rm -f "$tmp"
+)
 
-# 3. Recovery ObjectStore 배포
+# 4. Recovery ObjectStore 배포
 envsubst < gitops/data/postgresql/recovery-object-store.template.yaml | kubectl apply -f -
 
-# 4. Recovery Cluster 배포 및 준비 관찰
+# 5. Recovery Cluster 배포 및 준비 관찰
 envsubst < gitops/data/postgresql/recovery-cluster.template.yaml | kubectl apply -f -
 kubectl get cluster aligner-db-recovery -n aligner-pitr-drill -w
 ```
@@ -152,10 +191,10 @@ kubectl exec -it aligner-db-recovery-1 -n aligner-pitr-drill -c postgres -- psql
 # Marker B 부재 확인 (반드시 0건 -> TARGET_TIME 경계 이후 데이터가 복원되지 않았음을 증명)
 kubectl exec -it aligner-db-recovery-1 -n aligner-pitr-drill -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "SELECT count(*) FROM training.pitr_drill_marker WHERE marker = 'drill-marker-B';"
 
-# 행 수 및 md5 체크섬이 1단계 기준값과 100% 일치하는지 확인
+# 행 수 및 md5 체크섬이 1단계 기준값과 100% 일치하는지 확인 (session_id 기준)
 kubectl exec -it aligner-db-recovery-1 -n aligner-pitr-drill -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "
 SELECT count(*) FROM training.session;
-SELECT md5(string_agg(id::text, '')) FROM (SELECT id FROM training.session ORDER BY id) s;
+SELECT md5(string_agg(session_id::text, '')) FROM (SELECT session_id FROM training.session ORDER BY session_id) s;
 "
 ```
 
