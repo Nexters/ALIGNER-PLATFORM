@@ -85,11 +85,11 @@ EOF
 ```
 [운영 DB: aligner-db]
    │
-   ├── 1단계: Drill Table 생성, Marker A 삽입 & WAL flush ──► 기준 행 수 N_A, 체크섬 C_A 기록
+   ├── 1단계: Drill Table 생성, Marker A 삽입 & WAL flush ──► pitr_drill_marker 기준값(행 수 1, 체크섬) 기록
    │                                                             │
    │                                                             ├── 2단계: TARGET_TIME (PostgreSQL clock_timestamp()) 기록
    │                                                             │
-   ├── 3단계: Marker B 삽입, WAL switch & B2 아카이브 완료 대기 ─► (T > TARGET_TIME)
+   ├── 3단계: Marker B 커밋 ➔ WAL switch ➔ TARGET_WAL B2 아카이브 대기 ─► (T > TARGET_TIME)
    │
    └── (B2 s3://aligner-prod-backup/cnpg/ 아카이빙)
                                                                  │
@@ -98,11 +98,11 @@ EOF
    │
    ├── 4단계: StorageClass, Reader Secret, Recovery ObjectStore 및 Cluster 기동
    │
-   ├── 5단계: 정합성 검증:
+   ├── 5단계: 결정론적 정합성 검증:
    │         ├── Marker A: 존재 확인 (1건 -> Pass)
    │         ├── Marker B: 부재 확인 (0건 -> Pass: 목표 시점 이후 데이터 미포함 증명)
-   │         ├── 행 수 일치: 정확히 N_A (Pass)
-   │         └── 테이블 Checksum: 정확히 C_A (Pass)
+   │         ├── 행 수 일치: 정확히 1건 (Pass)
+   │         └── 테이블 Checksum: 1단계 기준 Checksum과 100% 일치 (Pass)
    │
    ├── 6단계: 복구 클러스터/PVC/네임스페이스 삭제, 운영 DB Marker 테이블 정리, B2 Reader Key 폐기
    │
@@ -126,10 +126,10 @@ CREATE TABLE IF NOT EXISTS training.pitr_drill_marker (
 INSERT INTO training.pitr_drill_marker (marker, note) VALUES ('drill-marker-A', 'baseline');
 "
 
-# 3. 기준 행 수 및 md5 체크섬 기록 (PK 컬럼 session_id 기준)
+# 3. 기준 행 수 및 md5 체크섬 기록 (결정론적 검증 기준: training.pitr_drill_marker)
 kubectl exec -it "$PRIMARY" -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "
-SELECT count(*) FROM training.session;
-SELECT md5(string_agg(session_id::text, '')) FROM (SELECT session_id FROM training.session ORDER BY session_id) s;
+SELECT count(*) FROM training.pitr_drill_marker;
+SELECT md5(string_agg(marker, '' ORDER BY marker)) FROM training.pitr_drill_marker;
 "
 
 # 4. WAL 강제 flush
@@ -144,28 +144,33 @@ export TARGET_TIME
 echo "Recovery Target Time (PostgreSQL Clock): $TARGET_TIME"
 ```
 
-### 3단계: 경계 검증용 Marker B 삽입 및 WAL 아카이브 완료 확인 (Polling Wait)
+### 3단계: 경계 검증용 Marker B 커밋 및 TARGET_WAL 아카이브 완료 대기 (180초 타임아웃)
 ```bash
-# 1. 아카이브 카운트 및 실패 수 기준값 저장
-ARCHIVED_BEFORE=$(kubectl exec "$PRIMARY" -n aligner-data -c postgres -- \
-  psql -U aligner_prod_user -d aligner_prod -Atc "SELECT archived_count FROM pg_stat_archiver;")
-FAILED_BEFORE=$(kubectl exec "$PRIMARY" -n aligner-data -c postgres -- \
-  psql -U aligner_prod_user -d aligner_prod -Atc "SELECT failed_count FROM pg_stat_archiver;")
-
-# 2. TARGET_TIME 이후 Marker B 삽입 & WAL segment 전환
+# 1. Marker B 커밋 (별도 트랜잭션으로 완료 보장)
 kubectl exec -it "$PRIMARY" -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "
 INSERT INTO training.pitr_drill_marker (marker, note) VALUES ('drill-marker-B', 'post-cutoff');
-SELECT pg_switch_wal();
 "
 
-# 3. WAL 아카이빙 B2 업로드 완료 확인 (Polling Wait: archived_count 증가 및 failed_count 무증가 검증)
-echo "Waiting for WAL segment to be archived to Backblaze B2..."
-until kubectl exec "$PRIMARY" -n aligner-data -c postgres -- \
+# 2. WAL segment 전환 및 정확한 대상 WAL 파일명 캡처
+TARGET_WAL=$(kubectl exec "$PRIMARY" -n aligner-data -c postgres -- \
   psql -U aligner_prod_user -d aligner_prod -Atc \
-  "SELECT archived_count > $ARCHIVED_BEFORE AND failed_count = $FAILED_BEFORE FROM pg_stat_archiver;" | grep -qx t; do
+  "SELECT pg_walfile_name(pg_switch_wal());")
+echo "Waiting for WAL segment to be archived in Backblaze B2: $TARGET_WAL"
+
+# 3. B2 원격 아카이빙 완료 폴링 대기 (180초 타임아웃)
+deadline=$((SECONDS + 180))
+while true; do
+  LAST_ARCHIVED=$(kubectl exec "$PRIMARY" -n aligner-data -c postgres -- \
+    psql -U aligner_prod_user -d aligner_prod -Atc \
+    "SELECT last_archived_wal FROM pg_stat_archiver;")
+  [[ "$LAST_ARCHIVED" >= "$TARGET_WAL" ]] && break
+  if (( SECONDS >= deadline )); then
+    echo "ERROR: WAL archive timeout for segment $TARGET_WAL (last_archived_wal: $LAST_ARCHIVED)" >&2
+    exit 1
+  fi
   sleep 2
 done
-echo "WAL segment successfully archived to B2 (archived_count > $ARCHIVED_BEFORE, failed_count delta = 0)."
+echo "WAL segment $TARGET_WAL successfully archived to B2 (last_archived: $LAST_ARCHIVED)."
 ```
 
 ### 4단계: 격리 네임스페이스에 Recovery ObjectStore 및 복구 클러스터 기동
@@ -200,18 +205,18 @@ envsubst < gitops/data/postgresql/recovery-cluster.template.yaml | kubectl apply
 kubectl get cluster aligner-db-recovery -n aligner-pitr-drill -w
 ```
 
-### 5단계: 시간 경계 정합성 및 무결성 검증
+### 5단계: 시간 경계 정합성 및 무결성 검증 (결정론적 기준)
 ```bash
-# Marker A 존재 확인 (반드시 1건)
+# 1. Marker A 존재 확인 (반드시 1건)
 kubectl exec -it aligner-db-recovery-1 -n aligner-pitr-drill -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "SELECT count(*) FROM training.pitr_drill_marker WHERE marker = 'drill-marker-A';"
 
-# Marker B 부재 확인 (반드시 0건 -> TARGET_TIME 경계 이후 데이터가 복원되지 않았음을 증명)
+# 2. Marker B 부재 확인 (반드시 0건 -> TARGET_TIME 경계 이후 데이터가 복원되지 않았음을 증명)
 kubectl exec -it aligner-db-recovery-1 -n aligner-pitr-drill -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "SELECT count(*) FROM training.pitr_drill_marker WHERE marker = 'drill-marker-B';"
 
-# 행 수 및 md5 체크섬이 1단계 기준값과 100% 일치하는지 확인 (session_id 기준)
+# 3. 복구 클러스터의 행 수(1건) 및 Checksum이 1단계 기준값과 100% 일치하는지 확인 (pitr_drill_marker 기준)
 kubectl exec -it aligner-db-recovery-1 -n aligner-pitr-drill -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "
-SELECT count(*) FROM training.session;
-SELECT md5(string_agg(session_id::text, '')) FROM (SELECT session_id FROM training.session ORDER BY session_id) s;
+SELECT count(*) FROM training.pitr_drill_marker;
+SELECT md5(string_agg(marker, '' ORDER BY marker)) FROM training.pitr_drill_marker;
 "
 ```
 
