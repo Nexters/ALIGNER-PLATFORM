@@ -1,0 +1,32 @@
+# Point-In-Time-Recovery (PITR) Template for CloudNativePG with Barman Cloud Plugin v0.14.0
+#
+# Prerequisites for Non-Destructive Drill:
+# 1. Target Time (UTC): export TARGET_TIME="2026-08-19 10:00:00.000000+00"
+# 2. Secret: 'aligner-postgresql-b2-reader' (read-only key) exists in namespace 'aligner-pitr-drill'
+# 3. ObjectStore: 'aligner-b2-backup' exists in namespace 'aligner-pitr-drill'
+#
+# Execution:
+#   envsubst < gitops/data/postgresql/recovery-cluster.template.yaml | kubectl apply -f -
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: aligner-db-recovery
+  namespace: aligner-pitr-drill
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.8
+  storage:
+    size: 30Gi
+    storageClass: aligner-local-path
+  bootstrap:
+    recovery:
+      source: aligner-db-backup-source
+      recoveryTarget:
+        targetTime: "${TARGET_TIME}"
+  externalClusters:
+    - name: aligner-db-backup-source
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: aligner-b2-backup
+          serverName: aligner-db

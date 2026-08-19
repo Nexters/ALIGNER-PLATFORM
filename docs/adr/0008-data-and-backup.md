@@ -8,7 +8,7 @@ Accepted with Gate
 
 - CloudNativePG `instances: 2`를 서로 다른 노드의 local-path 볼륨에 배치한다.
 - 비동기 복제와 `-rw` Service를 기본으로 사용한다.
-- private Backblaze B2 버킷 하나에 `k3s-etcd/` 6시간 etcd snapshot과 `cnpg/` 연속 WAL·주간 base backup을 저장한다.
+- private Backblaze B2 버킷 하나에 `k3s-etcd/` 6시간 etcd snapshot과 `cnpg/` 연속 WAL·일일 base backup(30일 보존)을 저장한다.
 - K3s와 CNPG는 서로 다른 prefix-scoped application key를 사용한다. 보존에 필요한 list/delete 권한은 acceptance test로 확인한 뒤에만 부여한다.
 
 ## 한계

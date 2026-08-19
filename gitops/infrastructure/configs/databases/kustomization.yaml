@@ -2,6 +2,4 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - postgresql-ha-cluster.yaml
-  - scheduled-backup.yaml
-  - network-policy-b2.yaml
   - init-databases-configmap.yaml

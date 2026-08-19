@@ -15,30 +15,6 @@ spec:
     initdb:
       database: aligner_prod
       owner: aligner_prod_user
-  postgresql:
-    parameters:
-      archive_timeout: "300s"
-      max_connections: "120"
-      wal_compression: "on"
-      wal_keep_size: "512MB"
-  backup:
-    barmanObjectStore:
-      destinationPath: "s3://aligner-prod-backup/cnpg/"
-      endpointURL: "https://s3.us-west-004.backblazeb2.com"
-      s3Credentials:
-        accessKeyId:
-          name: aligner-postgresql-b2-writer
-          key: ACCESS_KEY_ID
-        secretAccessKey:
-          name: aligner-postgresql-b2-writer
-          key: ACCESS_SECRET_KEY
-      wal:
-        compression: gzip
-        maxParallel: 2
-      data:
-        compression: gzip
-        immediateCheckpoint: false
-    retentionPolicy: "30d"
   resources:
     requests:
       cpu: 100m

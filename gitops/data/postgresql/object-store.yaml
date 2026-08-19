@@ -14,4 +14,10 @@ spec:
       secretAccessKey:
         name: aligner-postgresql-b2-writer
         key: ACCESS_SECRET_KEY
-  retentionPolicy: 35d
+    wal:
+      compression: gzip
+      maxParallel: 2
+    data:
+      compression: gzip
+      immediateCheckpoint: false
+  retentionPolicy: 30d
