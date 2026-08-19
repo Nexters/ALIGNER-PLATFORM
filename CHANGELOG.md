@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/Nexters/ALIGNER-PLATFORM/compare/aligner-platform-v0.3.1...aligner-platform-v0.4.0) (2026-08-19)
+
+
+### ✨ 신규 인프라 기능 (Features)
+
+* **backup:** Barman Cloud Plugin 기반 B2 백업·PITR 사전 구성 및 운영 Gate 추가 ([#94](https://github.com/Nexters/ALIGNER-PLATFORM/issues/94)) ([56de7ac](https://github.com/Nexters/ALIGNER-PLATFORM/commit/56de7aca1bf9cd5ae48382b9595e7a12907bccd9))
+
 ## [0.3.1](https://github.com/Nexters/ALIGNER-PLATFORM/compare/aligner-platform-v0.3.0...aligner-platform-v0.3.1) (2026-08-18)
 
 
