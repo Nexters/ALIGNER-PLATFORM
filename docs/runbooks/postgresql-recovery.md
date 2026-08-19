@@ -109,16 +109,17 @@ EOF
    └── 7단계: python3 scripts/validate_postgresql_pitr.py 증적 검증
 ```
 
-### 1단계: 드릴 테이블 생성, 기준 Marker A 삽입 및 기준값 기록
+### 1단계: 드릴 테이블 초기화, 기준 Marker A 삽입 및 기준값 기록
 ```bash
 # 1. Primary Pod 및 Node 동적 식별
 PRIMARY=$(kubectl get cluster aligner-db -n aligner-data -o jsonpath='{.status.currentPrimary}')
 PRIMARY_NODE=$(kubectl get pod "$PRIMARY" -n aligner-data -o jsonpath='{.spec.nodeName}')
 echo "Target Primary: $PRIMARY on $PRIMARY_NODE"
 
-# 2. 드릴 전용 테이블 생성 및 Marker A 삽입
+# 2. 드릴 전용 테이블 초기화 및 Marker A 삽입 (실패 후 재실행 멱등성 보장)
 kubectl exec -it "$PRIMARY" -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "
-CREATE TABLE IF NOT EXISTS training.pitr_drill_marker (
+DROP TABLE IF EXISTS training.pitr_drill_marker;
+CREATE TABLE training.pitr_drill_marker (
     marker TEXT PRIMARY KEY,
     note TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -132,8 +133,8 @@ SELECT count(*) FROM training.pitr_drill_marker;
 SELECT md5(string_agg(marker, '' ORDER BY marker)) FROM training.pitr_drill_marker;
 "
 
-# 4. WAL 강제 flush
-kubectl exec -it "$PRIMARY" -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "SELECT pg_switch_wal();"
+# 4. WAL 강제 flush (DBA 권한 postgres context)
+kubectl exec -it "$PRIMARY" -n aligner-data -c postgres -- psql -U postgres -d postgres -c "SELECT pg_switch_wal();"
 ```
 
 ### 2단계: 복구 목표 시각 ($T_{target}$) 기록 (PostgreSQL 시계 도메인 기준)
@@ -146,26 +147,28 @@ echo "Recovery Target Time (PostgreSQL Clock): $TARGET_TIME"
 
 ### 3단계: 경계 검증용 Marker B 커밋 및 TARGET_WAL 아카이브 완료 대기 (180초 타임아웃)
 ```bash
-# 1. Marker B 커밋 (별도 트랜잭션으로 완료 보장)
+# 1. Marker B 커밋 (비즈니스 계정, 별도 트랜잭션 완료 보장)
 kubectl exec -it "$PRIMARY" -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "
 INSERT INTO training.pitr_drill_marker (marker, note) VALUES ('drill-marker-B', 'post-cutoff');
 "
 
-# 2. WAL segment 전환 및 정확한 대상 WAL 파일명 캡처
+# 2. WAL segment 전환 및 정확한 대상 WAL 파일명 캡처 (DBA 권한 postgres context)
 TARGET_WAL=$(kubectl exec "$PRIMARY" -n aligner-data -c postgres -- \
-  psql -U aligner_prod_user -d aligner_prod -Atc \
+  psql -U postgres -d postgres -Atc \
   "SELECT pg_walfile_name(pg_switch_wal());")
 echo "Waiting for WAL segment to be archived in Backblaze B2: $TARGET_WAL"
 
-# 3. B2 원격 아카이빙 완료 폴링 대기 (180초 타임아웃)
+# 3. B2 원격 아카이빙 완료 폴링 대기 (180초 타임아웃, 유효한 Bash 조건식)
 deadline=$((SECONDS + 180))
 while true; do
   LAST_ARCHIVED=$(kubectl exec "$PRIMARY" -n aligner-data -c postgres -- \
-    psql -U aligner_prod_user -d aligner_prod -Atc \
+    psql -U postgres -d postgres -Atc \
     "SELECT last_archived_wal FROM pg_stat_archiver;")
-  [[ "$LAST_ARCHIVED" >= "$TARGET_WAL" ]] && break
+  if [[ -n "$LAST_ARCHIVED" && ( "$LAST_ARCHIVED" == "$TARGET_WAL" || "$LAST_ARCHIVED" > "$TARGET_WAL" ) ]]; then
+    break
+  fi
   if (( SECONDS >= deadline )); then
-    echo "ERROR: WAL archive timeout for segment $TARGET_WAL (last_archived_wal: $LAST_ARCHIVED)" >&2
+    echo "ERROR: WAL archive timeout for segment $TARGET_WAL (last_archived: ${LAST_ARCHIVED:-none})" >&2
     exit 1
   fi
   sleep 2
