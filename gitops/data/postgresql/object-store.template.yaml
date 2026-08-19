@@ -1,3 +1,9 @@
+# Primary ObjectStore Template for Backblaze B2 Barman Cloud
+#
+# Usage:
+#   export B2_BUCKET="aligner-prod-backup"
+#   export B2_REGION="us-west-004"
+#   envsubst < gitops/data/postgresql/object-store.template.yaml > gitops/data/postgresql/object-store.yaml
 apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore
 metadata:
@@ -5,8 +11,8 @@ metadata:
   namespace: aligner-data
 spec:
   configuration:
-    destinationPath: s3://<B2_BUCKET>/cnpg/
-    endpointURL: https://s3.<B2_REGION>.backblazeb2.com
+    destinationPath: "s3://${B2_BUCKET}/cnpg/"
+    endpointURL: "https://s3.${B2_REGION}.backblazeb2.com"
     s3Credentials:
       accessKeyId:
         name: aligner-postgresql-b2-writer
@@ -20,4 +26,4 @@ spec:
     data:
       compression: gzip
       immediateCheckpoint: false
-  retentionPolicy: 30d
+  retentionPolicy: "30d"

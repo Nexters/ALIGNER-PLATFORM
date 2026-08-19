@@ -1,11 +1,11 @@
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup
 metadata:
-  name: aligner-db-weekly
+  name: aligner-db-daily
   namespace: aligner-data
 spec:
-  schedule: "0 0 0 * * 0"
-  backupOwnerReference: none
+  schedule: "0 0 19 * * *"
+  backupOwnerReference: self
   cluster:
     name: aligner-db
   method: plugin
