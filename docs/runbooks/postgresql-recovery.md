@@ -22,34 +22,38 @@ CloudNativePG (CNPG) v1.30.0과 **Barman Cloud Plugin v0.14.0**을 활용하여 
 | **`aligner-postgresql-b2-writer`** | 운영 Primary WAL 업로드 및 일일 풀 백업 | `aligner-prod-backup`<br>`cnpg/*` | `listFiles`<br>`readFiles`<br>`writeFiles`<br>`deleteFiles` | 30일 retention 만료 파일 정리를 위해 `deleteFiles` 필수 |
 | **`aligner-postgresql-b2-reader`** | PITR 복구 드릴 및 재해 복구 검증 | `aligner-prod-backup`<br>`cnpg/*` | `listFiles`<br>`readFiles` | 운영 데이터 오염 방지 (`deleteFiles`/`writeFiles` 절대 금지, 드릴 후 폐기) |
 
-### Kubernetes Secret 주입 예시 (Out-of-band, 0600 안전 주입)
+### Kubernetes Secret 주입 예시 (Out-of-band, 0600 안전 멱등 주입)
 ```bash
 # 1. Writer Secret (운영 네임스페이스)
 (
+  set -euo pipefail
   umask 077
   tmp=$(mktemp)
+  trap 'rm -f "$tmp"' EXIT
   cat > "$tmp" <<EOF
 ACCESS_KEY_ID=$B2_WRITER_KEY_ID
 ACCESS_SECRET_KEY=$B2_WRITER_APPLICATION_KEY
 EOF
   kubectl create secret generic aligner-postgresql-b2-writer \
     -n aligner-data \
-    --from-env-file="$tmp"
-  rm -f "$tmp"
+    --from-env-file="$tmp" \
+    --dry-run=client -o yaml | kubectl apply -f -
 )
 
 # 2. Reader Secret (격리 복구 네임스페이스 - 드릴 전 임시 생성)
 (
+  set -euo pipefail
   umask 077
   tmp=$(mktemp)
+  trap 'rm -f "$tmp"' EXIT
   cat > "$tmp" <<EOF
 ACCESS_KEY_ID=$B2_READER_KEY_ID
 ACCESS_SECRET_KEY=$B2_READER_APPLICATION_KEY
 EOF
   kubectl create secret generic aligner-postgresql-b2-reader \
     -n aligner-pitr-drill \
-    --from-env-file="$tmp"
-  rm -f "$tmp"
+    --from-env-file="$tmp" \
+    --dry-run=client -o yaml | kubectl apply -f -
 )
 ```
 
@@ -57,14 +61,15 @@ EOF
 
 ## 3. Node-loss Failover 드릴
 
-1. primary Pod 및 위치한 Node(VM)를 확인한다:
+1. primary Pod 및 위치한 Node(VM)와 Internal IP를 확인한다:
    ```bash
    PRIMARY=$(kubectl get cluster aligner-db -n aligner-data -o jsonpath='{.status.currentPrimary}')
    PRIMARY_NODE=$(kubectl get pod "$PRIMARY" -n aligner-data -o jsonpath='{.spec.nodeName}')
    echo "Primary Pod : $PRIMARY"
    echo "Primary Node: $PRIMARY_NODE"
+   kubectl get node "$PRIMARY_NODE" -o wide
    ```
-2. 가비아 콘솔 또는 인프라 레벨에서 해당 VM(`PRIMARY_NODE`)을 강제 정지한다.
+2. 가비아 콘솔 또는 인프라 레벨에서 해당 VM(`PRIMARY_NODE`의 Internal IP 매핑 대상)을 강제 정지한다.
 3. CNPG 클러스터 상태와 새 primary 선출을 관찰한다 (`kubectl get pods -n aligner-data -w`).
 4. 애플리케이션 쓰기 재개 시간을 기록한다.
 5. 장애 노드 복구 후 standby가 30분 안에 정상 재구성되는지 확인한다.
@@ -73,7 +78,7 @@ EOF
 
 ---
 
-## 4. 결정론적 7단계 PITR (Point-In-Time-Recovery) 드릴 절차
+## 4. Gate B — 결정론적 7단계 운영 PITR (Point-In-Time-Recovery) 드릴 절차
 
 운영 Cluster를 절대 덮어쓰지 않고, **별도 격리 네임스페이스(`aligner-pitr-drill`)의 복구 클러스터(`aligner-db-recovery`)**로 목표 시점까지 복원하여 시간 경계 정합성을 검증합니다.
 
@@ -84,7 +89,7 @@ EOF
    │                                                             │
    │                                                             ├── 2단계: TARGET_TIME (PostgreSQL clock_timestamp()) 기록
    │                                                             │
-   ├── 3단계: Marker B 삽입, WAL switch & B2 archive 확인 ──────► (T > TARGET_TIME)
+   ├── 3단계: Marker B 삽입, WAL switch & B2 아카이브 완료 대기 ─► (T > TARGET_TIME)
    │
    └── (B2 s3://aligner-prod-backup/cnpg/ 아카이빙)
                                                                  │
@@ -139,18 +144,28 @@ export TARGET_TIME
 echo "Recovery Target Time (PostgreSQL Clock): $TARGET_TIME"
 ```
 
-### 3단계: 경계 검증용 Marker B 삽입 및 WAL 아카이브 완료 확인
+### 3단계: 경계 검증용 Marker B 삽입 및 WAL 아카이브 완료 확인 (Polling Wait)
 ```bash
-# 1. TARGET_TIME 이후 Marker B 삽입
+# 1. 아카이브 카운트 및 실패 수 기준값 저장
+ARCHIVED_BEFORE=$(kubectl exec "$PRIMARY" -n aligner-data -c postgres -- \
+  psql -U aligner_prod_user -d aligner_prod -Atc "SELECT archived_count FROM pg_stat_archiver;")
+FAILED_BEFORE=$(kubectl exec "$PRIMARY" -n aligner-data -c postgres -- \
+  psql -U aligner_prod_user -d aligner_prod -Atc "SELECT failed_count FROM pg_stat_archiver;")
+
+# 2. TARGET_TIME 이후 Marker B 삽입 & WAL segment 전환
 kubectl exec -it "$PRIMARY" -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "
 INSERT INTO training.pitr_drill_marker (marker, note) VALUES ('drill-marker-B', 'post-cutoff');
 SELECT pg_switch_wal();
 "
 
-# 2. WAL 아카이빙 완료 확인 (B2 업로드 상태 점검)
-kubectl exec -it "$PRIMARY" -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "
-SELECT last_archived_wal, last_archived_time, failed_count FROM pg_stat_archiver;
-"
+# 3. WAL 아카이빙 B2 업로드 완료 확인 (Polling Wait: archived_count 증가 및 failed_count 무증가 검증)
+echo "Waiting for WAL segment to be archived to Backblaze B2..."
+until kubectl exec "$PRIMARY" -n aligner-data -c postgres -- \
+  psql -U aligner_prod_user -d aligner_prod -Atc \
+  "SELECT archived_count > $ARCHIVED_BEFORE AND failed_count = $FAILED_BEFORE FROM pg_stat_archiver;" | grep -qx t; do
+  sleep 2
+done
+echo "WAL segment successfully archived to B2 (archived_count > $ARCHIVED_BEFORE, failed_count delta = 0)."
 ```
 
 ### 4단계: 격리 네임스페이스에 Recovery ObjectStore 및 복구 클러스터 기동
@@ -161,18 +176,20 @@ kubectl apply -f gitops/data/postgresql/storage-class.yaml
 # 2. 격리 네임스페이스 생성
 kubectl create namespace aligner-pitr-drill --dry-run=client -o yaml | kubectl apply -f -
 
-# 3. 안전한 임시 Reader B2 Secret 생성 (Process argv/shell history 노출 차단)
+# 3. 안전하고 멱등한 임시 Reader B2 Secret 생성 (Process argv/shell history 노출 차단)
 (
+  set -euo pipefail
   umask 077
   tmp=$(mktemp)
+  trap 'rm -f "$tmp"' EXIT
   cat > "$tmp" <<EOF
 ACCESS_KEY_ID=$B2_READER_KEY_ID
 ACCESS_SECRET_KEY=$B2_READER_APPLICATION_KEY
 EOF
   kubectl create secret generic aligner-postgresql-b2-reader \
     -n aligner-pitr-drill \
-    --from-env-file="$tmp"
-  rm -f "$tmp"
+    --from-env-file="$tmp" \
+    --dry-run=client -o yaml | kubectl apply -f -
 )
 
 # 4. Recovery ObjectStore 배포
@@ -218,12 +235,12 @@ python3 scripts/validate_postgresql_pitr.py --result /path/to/evidence.json
 
 ---
 
-## 5. 배포 전 2단계 Gate (Two-Stage Gate Architecture)
+## 5. 배포 게이트 체계 (Deployment Gates Architecture)
 
 순환 의존성(Chicken-and-Egg)을 방지하고 운영 DB 무중단 안전성을 보장하기 위해 2단계 Gate 프로세스를 준수합니다.
 
 ```
-[Gate A: B2 Integration Acceptance]
+[Gate A: Sandbox B2 Acceptance]
    ├── 임시/Sandbox CNPG 클러스터 기동
    ├── B2 WAL 아카이빙 및 Base 백업 검증
    └── 격리 PITR 복구 성공 (PASS 증적 확보)
@@ -234,11 +251,20 @@ python3 scripts/validate_postgresql_pitr.py --result /path/to/evidence.json
    └── 첫 일일 풀 백업 및 연속 WAL 스트리밍 확보
                │
                ▼
-[Gate B: Production Recovery Acceptance & Ownership Migration]
-   ├── 운영 aligner-db 백업 기반으로 aligner-pitr-drill 복구 검증
-   ├── RTO/RPO/체크섬 증적 승인 (Fixes #81)
+[Gate B: Production PITR Drill & Ownership Migration]
+   ├── 운영 aligner-db 백업 기반으로 aligner-pitr-drill 복구 검증 (Section 4 수행)
+   ├── RTO/RPO/체크섬 증적 승인 (Refs #81 -> Fixes #81 완료)
    └── gitops/infrastructure/configs/databases/aligner-db를 gitops/data/postgresql/aligner-db로 GitOps 소유권 단일화
 ```
+
+### 5.1 Gate A — Sandbox B2 연동 및 사전 검증
+* B2 버킷 및 Application Key 발급 후, Sandbox 환경에서 Barman Cloud Plugin의 WAL 업로드 및 Base 백업 생성을 선행 검증합니다.
+
+### 5.2 Production Backup Activation (운영 백업 활성화)
+* Gate A 통과 후, 운영 `aligner-db`에 Barman Cloud Plugin v0.14.0 설정을 연결하여 첫 일일 풀 백업과 실시간 WAL 아카이빙 스트리밍을 가동합니다.
+
+### 5.3 Gate B — Production PITR Drill & 소유권 단일화
+* 본 문서의 **Section 4 (7단계 PITR 드릴 절차)**를 수행하여 운영 백업 기반의 시간 경계 정합성 증적을 확보하고, `gitops/data/postgresql/`로 GitOps 소유권을 완전히 단일화합니다.
 
 ---
 
