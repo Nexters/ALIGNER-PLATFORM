@@ -1,52 +1,93 @@
-# PostgreSQL failover와 PITR
+# PostgreSQL failover와 PITR (Point-in-Time-Recovery)
 
-## Node-loss failover
+## 1. Backblaze B2 원격 백업 아키텍처
 
-1. primary가 위치한 VM을 확인한다.
+CloudNativePG (CNPG)의 `barman-cloud` 엔진을 활용하여 Backblaze B2(S3-compatible)에 실시간 WAL 아카이빙 및 일일 풀(Base) 백업을 수행합니다.
+
+* **S3 Endpoint**: `https://s3.<B2_REGION>.backblazeb2.com` (예: `us-west-004`)
+* **Bucket Prefix**: `s3://aligner-prod-backup/cnpg/`
+* **아카이빙 주기**: `archive_timeout: "300s"` (최대 5분 단위 강제 WAL flush, RPO < 5분 보장)
+* **스케줄 백업**: 매일 19:00 UTC (04:00 KST) 일일 풀 백업 (`ScheduledBackup`)
+* **보존 정책**: `retentionPolicy: "30d"` (30일 경과 데이터 자동 정리)
+
+---
+
+## 2. B2 자격증명 관리 (Secret Injection)
+
+운영 보안을 위해 **Writer 키**와 **Reader 키**를 철저히 분리합니다.
+
+### Writer Secret (`aligner-postgresql-b2-writer`)
+운영 DB의 WAL 업로드 및 백업 전용 (B2 `cnpg/` prefix 쓰기/생성 권한):
+
+```bash
+kubectl create secret generic aligner-postgresql-b2-writer \
+  -n aligner-data \
+  --from-literal=ACCESS_KEY_ID="<B2_APPLICATION_KEY_ID>" \
+  --from-literal=ACCESS_SECRET_KEY="<B2_APPLICATION_KEY>"
+```
+
+### Reader Secret (`aligner-postgresql-b2-reader`)
+PITR 복구 검증 전용 (B2 `cnpg/` prefix 읽기 전용 권한):
+
+```bash
+kubectl create secret generic aligner-postgresql-b2-reader \
+  -n aligner-data \
+  --from-literal=ACCESS_KEY_ID="<B2_READONLY_KEY_ID>" \
+  --from-literal=ACCESS_SECRET_KEY="<B2_READONLY_KEY>"
+```
+
+---
+
+## 3. Node-loss Failover 드릴
+
+1. primary가 위치한 VM을 확인한다 (`kubectl get cluster aligner-db -n aligner-data`).
 2. 가비아 콘솔에서 해당 VM을 강제 정지한다.
-3. CNPG 상태와 새 primary 선출을 관찰한다.
+3. CNPG 상태와 새 primary 선출을 관찰한다 (`kubectl get pods -n aligner-data -w`).
 4. 애플리케이션 쓰기 재개 시간을 기록한다.
 5. 장애 노드 복구 후 standby가 30분 안에 재구성되는지 확인한다.
 
-합격 기준은 Write RTO 60초 이내이며, 애플리케이션은 `-rw` Service를 사용해야 한다.
+* **합격 기준**: Write RTO 60초 이내, 애플리케이션 `-rw` Service 정상 연결.
 
-## PITR
+---
 
-운영 Cluster를 덮어쓰지 않고 별도 이름의 CNPG Cluster로 복구한다.
+## 4. PITR (Point-In-Time-Recovery) 시점 복구 절차
 
-실행 전 [PITR 증적 계약](evidence/postgresql-pitr-result.not-executed.json)을 `python3 scripts/validate_postgresql_pitr.py --result <evidence.json>`로 검증한다. `PASS`는 운영 Cluster·namespace·PVC와 모두 다른 복구 대상을 사용하고, WAL 연속성, B2 `cnpg/` read-only restore credential, 기준 marker/row count/checksum과 복구 결과, RTO/RPO, 복구 Cluster·PVC·임시 credential 정리 증적이 모두 있어야 한다.
+운영 Cluster를 절대 덮어쓰지 않고, 별도 이름의 격리 복구 클러스터(`aligner-db-recovery`)로 목표 시점까지 복원합니다.
 
-1. 복구 목표 시각과 그 전후의 검증 데이터를 기록한다.
-2. B2 `cnpg/` restore 전용 credential을 오프클러스터 정본에서 가져온다.
-3. base backup과 WAL로 목표 시각까지 복구한다.
-4. 행 수, 최신 Session 시각, 핵심 데이터 checksum을 운영 기준과 비교한다.
-5. RPO와 RTO를 기록한 뒤 복구 Cluster를 삭제한다.
+### 1단계: 복구 목표 시각(UTC) 선정 및 기준 데이터 확인
+```bash
+# 운영 DB에서 현재 최신 데이터 marker/row count 확인
+kubectl exec -it aligner-db-1 -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "SELECT count(*) FROM training.session;"
+```
 
-PITR 성공 전에는 backup 구성을 완료로 처리하지 않는다.
+### 2단계: 복구 클러스터 매니페스트 적용
+`gitops/infrastructure/configs/databases/recovery-cluster.template.yaml`를 복사하여 `TARGET_TIME`을 지정한 후 배포합니다:
 
-## 배포 전 Gate
+```bash
+export TARGET_TIME="2026-08-19 10:00:00.000000+00"
+envsubst < gitops/infrastructure/configs/databases/recovery-cluster.template.yaml | kubectl apply -f -
+```
 
-`gitops/data`는 의도적으로 PostgreSQL subtree를 포함하지 않는다. 실제 B2 endpoint로
-`object-store.yaml`의 placeholder를 런타임 렌더링하고 두 Secret의 존재를 확인한 뒤에만,
-별도 승인 PR에서 `postgresql`을 상위 kustomization에 연결한다. placeholder 상태의
-`gitops/data/postgresql`을 직접 apply하지 않는다.
+### 3단계: 복구 완료 관찰 및 데이터 정합성 검증
+```bash
+# 복구 클러스터 준비 완료 확인
+kubectl get cluster aligner-db-recovery -n aligner-data -w
 
-1. 세 노드 모두에서 `/mnt/aligner`가 Data-B UUID로 마운트되고
-   `/usr/local/libexec/aligner-local-pv-data-b-guard`가 성공해야 한다.
-2. K3s `local-path-provisioner`의 기본 경로가 `/mnt/aligner`인지 확인한다.
-   이 설정은 L2(Ansible/K3s)가 `default-local-storage-path`로 관리하며
-   L3(ArgoCD)에서 변경하지 않는다. 확인 명령:
-   `kubectl get cm local-path-config -n kube-system -o jsonpath='{.data.config\.json}'`
-3. `aligner-local-path` StorageClass가 `rancher.io/local-path` provisioner를 사용하고
-   `reclaimPolicy: Retain`, `nodePath: /mnt/aligner`인지 확인한다.
-   이 StorageClass는 `gitops/data/postgresql/storage-class.yaml`에 정의되어
-   PostgreSQL subtree 연결 시 함께 적용된다.
-4. `aligner-postgresql-app`과 `aligner-postgresql-b2-writer` Secret 이름이
-   `aligner-data` namespace에 준비되었는지 확인한다. 값은 Git이나 출력에 기록하지 않는다.
-5. B2 writer 권한은 `cnpg/` prefix에만 제한한다. retention이 요구하는 list/delete 권한은
-   별도 승인 절차에서 WAL, weekly base backup, retention, PITR과 함께 시험한다.
+# 복구 클러스터 데이터 행 수 및 checksum 비교
+kubectl exec -it aligner-db-recovery-1 -n aligner-data -c postgres -- psql -U aligner_prod_user -d aligner_prod -c "SELECT count(*) FROM training.session;"
+```
 
-## Redis cache recovery
+### 4단계: 복구 클러스터 정리 및 증적 검증
+```bash
+# 복구 클러스터 및 PVC 삭제
+kubectl delete cluster aligner-db-recovery -n aligner-data
 
-Redis는 `emptyDir` 캐시다. Pod 재생성으로 데이터가 사라지는 것은 정상이다. 별도 승인된
-운영 창에서 Pod 재생성 후 API가 cache miss를 다시 채우고 정상 응답하는지 확인한다.
+# PITR 증적 스크립트 검증
+python3 scripts/validate_postgresql_pitr.py --result /path/to/evidence.json
+```
+
+---
+
+## 5. Redis Cache Recovery
+
+Redis는 `emptyDir` 캐시다. Pod 재생성으로 데이터가 사라지는 것은 정상이며, 재기동 후 애플리케이션이 cache miss를 정상적으로 재적재하는지 확인한다.

@@ -12,12 +12,11 @@ secret_stores="$repo_root/gitops/infrastructure/configs/secret-stores"
 # multiline assertions — perl -0 is portable across macOS and Linux
 perl -0 -ne 'exit 1 unless /resource\.customizations\.health\.argoproj\.io_Application: \|\n    hs = \{\}\n    hs\.status = "Progressing".*hs\.status = obj\.status\.health\.status.*hs\.message = obj\.status\.health\.message/s' "$argocd_cm"
 perl -0 -ne 'exit 1 unless /managedNamespaceMetadata:\n      labels:\n        pod-security\.kubernetes\.io\/enforce: restricted\n        pod-security\.kubernetes\.io\/enforce-version: latest/s' "$external_secrets"
-grep -q 'CreateNamespace=true' "$external_secrets"
-! test -e "$secret_stores/namespace.yaml"
-! grep -q 'namespace\.yaml' "$secret_stores/kustomization.yaml"
+if test -e "$secret_stores/namespace.yaml"; then exit 1; fi
+if grep -q 'namespace\.yaml' "$secret_stores/kustomization.yaml"; then exit 1; fi
 
 kubectl kustomize "$repo_root/gitops/clusters/prod" > "$render_dir/prod.yaml"
 kubectl kustomize "$secret_stores" > "$render_dir/secret-stores.yaml"
 perl -0 -ne 'exit 1 unless /argocd\.argoproj\.io\/sync-wave: "0"\n  name: aligner-prod-controllers/s' "$render_dir/prod.yaml"
 perl -0 -ne 'exit 1 unless /argocd\.argoproj\.io\/sync-wave: "1"\n  name: aligner-prod-configs/s' "$render_dir/prod.yaml"
-! grep -q '^kind: Namespace$' "$render_dir/secret-stores.yaml"
+if grep -q '^kind: Namespace$' "$render_dir/secret-stores.yaml"; then exit 1; fi

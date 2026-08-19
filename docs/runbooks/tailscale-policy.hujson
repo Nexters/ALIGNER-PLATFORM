@@ -7,6 +7,7 @@
   },
   "tagOwners": {
     "tag:aligner-prod": ["group:aligner-operators"],
+    "tag:ci": ["group:aligner-operators"],
     "tag:aligner-k8s-operator": ["group:aligner-operators"],
     "tag:aligner-k8s": ["tag:aligner-k8s-operator", "group:aligner-operators"],
     "tag:aligner-argocd": ["tag:aligner-k8s-operator", "group:aligner-operators"],
@@ -23,9 +24,15 @@
       "ip": ["tcp:22", "tcp:6443"],
     },
     {
+      "src": ["tag:ci"],
+      "dst": ["tag:aligner-prod"],
+      "ip": ["tcp:6443"],
+    },
+    {
       "src": ["group:aligner-operators"],
       "dst": ["tag:aligner-argocd"],
       "ip": ["tcp:443", "icmp:*"],
     },
   ],
 }
+

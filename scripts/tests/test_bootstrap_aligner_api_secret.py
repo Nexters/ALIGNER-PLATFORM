@@ -11,7 +11,8 @@ KEYS_PATH = REPO_ROOT / "gitops" / "apps" / "aligner-api" / "runtime-secret.keys
 
 EXPECTED_KEYS = [
     "DB_PASSWORD",
-    "DB_URL",
+    "DB_PRIMARY_URL",
+    "DB_READONLY_URL",
     "DB_USERNAME",
     "JWT_SECRET",
     "KAKAO_CLIENT_ID",
@@ -41,12 +42,13 @@ class BootstrapAlignerApiSecretTest(unittest.TestCase):
 
     def test_missing_required_keys(self):
         with tempfile.NamedTemporaryFile("w", delete=False) as f:
-            f.write("DB_PASSWORD=secret\nDB_URL=jdbc:...\n")
+            f.write("DB_PASSWORD=secret\nDB_PRIMARY_URL=jdbc:...\n")
             temp_file = f.name
         try:
             result = subprocess.run([str(SCRIPT_PATH), temp_file], capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("missing required keys", result.stderr)
+            self.assertIn("DB_READONLY_URL", result.stderr)
             self.assertIn("DB_USERNAME", result.stderr)
             self.assertIn("JWT_SECRET", result.stderr)
             self.assertIn("KAKAO_CLIENT_ID", result.stderr)
@@ -61,7 +63,8 @@ class BootstrapAlignerApiSecretTest(unittest.TestCase):
         with tempfile.NamedTemporaryFile("w", delete=False) as f:
             f.write("""# Test Secret file
 DB_PASSWORD="mysecretpassword"
-DB_URL="jdbc:postgresql://aligner-postgresql-rw.aligner-data.svc:5432/aligner_dev"
+DB_PRIMARY_URL="jdbc:postgresql://aligner-db-rw.aligner-data.svc:5432/aligner_dev"
+DB_READONLY_URL="jdbc:postgresql://aligner-db-ro.aligner-data.svc:5432/aligner_dev"
 export DB_USERNAME=aligner_user
 JWT_SECRET=thisisalongjwtsecret1234567890123456
 KAKAO_CLIENT_ID='kakao-app-id'
