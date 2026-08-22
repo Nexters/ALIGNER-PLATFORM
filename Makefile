@@ -17,7 +17,7 @@ render:
 		echo "== gitops/apps/aligner-api/overlays/$$overlay =="; \
 		kubectl kustomize gitops/apps/aligner-api/overlays/$$overlay > /dev/null || exit 1; \
 	done
-	bash gitops/infrastructure/configs/secret-stores/tests/assert-ordering.sh
+	bash gitops/tests/assert-ordering.sh
 	bash gitops/infrastructure/configs/gateway/tests/assert-attachment-boundary.sh
 	bash gitops/infrastructure/configs/cluster-services/tests/assert-tailscale-boundary.sh
 	bash gitops/apps/aligner-api/tests/assert-manifests.sh
