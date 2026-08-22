@@ -44,6 +44,8 @@ spec:
             - ports:
                 - protocol: TCP
                   port: 443
+                - protocol: TCP
+                  port: 6443
   destination:
     server: https://kubernetes.default.svc
     namespace: aligner
