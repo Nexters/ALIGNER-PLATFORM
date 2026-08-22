@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.1](https://github.com/Nexters/ALIGNER-PLATFORM/compare/aligner-platform-v0.4.0...aligner-platform-v0.4.1) (2026-08-22)
+
+
+### 🐛 인프라 수정 (Fixes)
+
+* external-secrets NetworkPolicy egress에 K3s API 6443 포트 허용 추가 ([ab16ad0](https://github.com/Nexters/ALIGNER-PLATFORM/commit/ab16ad0491d6d162db059b1bc1f6ac57e7268fa4))
+
+
+### ♻️ 구조 개선 (Refactoring)
+
+* 미사용 Infisical/ESO 매니페스트 정리 및 ArgoCD 동기화 최적화 ([97f1801](https://github.com/Nexters/ALIGNER-PLATFORM/commit/97f1801cf65da16a577637f54caa2b97096a9dfb))
+
 ## [0.4.0](https://github.com/Nexters/ALIGNER-PLATFORM/compare/aligner-platform-v0.3.1...aligner-platform-v0.4.0) (2026-08-19)
 
 
